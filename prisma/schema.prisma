@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String   @default("STUDENT")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessonsCreated    Lesson[]    @relation("TeacherLessons")
+  lessonAttendance  Attendance[]
+  handRaises        HandRaise[]
+  reactions         Reaction[]
+  votes             Vote[]
+
+  @@index([email])
+}
+
+model Lesson {
+  id            String   @id @default(cuid())
+  title         String   @default("Nova Aula")
+  firstHymn     String
+  firstPrayer   String
+  announcements String?
+  lastHymn      String
+  lastPrayer    String
+  discourse     String   // URL do discurso
+  discoursePath String?  // mantido para compatibilidade
+  isActive      Boolean  @default(false)
+  currentSlide  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  teacher       User        @relation("TeacherLessons", fields: [teacherId], references: [id])
+  teacherId     String
+  slides        Slide[]
+  attendance    Attendance[]
+  handRaises    HandRaise[]
+  reactions     Reaction[]
+
+  @@index([teacherId])
+}
+
+model Slide {
+  id        String   @id @default(cuid())
+  order     Int
+  content   String
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+  resources Resource[]
+
+  @@index([lessonId])
+}
+
+model Resource {
+  id        String   @id @default(cuid())
+  type      String   // QUESTION, SCRIPTURE, POLL
+  content   String?
+  slideId   String
+  slide     Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  reference String?  // Para escrituras
+  options   String?    // Para enquetes e sugestões de perguntas
+  votes     Vote[]   // Para enquetes
+
+  @@index([slideId])
+}
+
+model Vote {
+  id         String   @id @default(cuid())
+  resourceId String
+  userId     String
+  option     String
+  timestamp  DateTime @default(now())
+
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [userId], references: [id])
+
+  @@unique([resourceId, userId])
+  @@index([resourceId])
+  @@index([userId])
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  lessonId  String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+
+  user      User     @relation(fields: [userId], references: [id])
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@index([userId])
+  @@index([lessonId])
+}
+
+model HandRaise {
+  id        String   @id @default(cuid())
+  userId    String
+  lessonId  String
+  timestamp DateTime @default(now())
+  resolved  Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id])
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@index([userId])
+  @@index([lessonId])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  type      String
+  userId    String
+  lessonId  String
+  slideId   String
+  timestamp DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  slide     Slide    @relation(fields: [slideId], references: [id])
+
+  @@index([userId])
+  @@index([lessonId])
+  @@index([slideId])
+}
