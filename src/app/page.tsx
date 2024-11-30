@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card/card';
 import { Skeleton } from '@/components/ui/skeleton/skeleton';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
+import { format, formatDistanceToNow } from 'date-fns/esm';
 import { ptBR } from 'date-fns/locale';
 import { PlusCircle, ChevronRight, BookOpen, User2, Calendar, Check } from 'lucide-react';
 
@@ -121,10 +121,7 @@ export default function Home() {
                                         <div className="flex items-center gap-2 self-start sm:self-center">
                                             <div className="flex items-center text-xs text-muted-foreground">
                                                 <Calendar className="h-3 w-3 mr-1" />
-                                                {formatDistanceToNow(new Date(lesson.createdAt), {
-                                                    addSuffix: true,
-                                                    locale: ptBR
-                                                })}
+                                                {format(new Date(lesson.createdAt), "d 'de' MMMM", { locale: ptBR })}
                                             </div>
                                             <Link href={`/ver-aula?id=${lesson.id}`}>
                                                 <Button variant="outline" className="gap-2">
