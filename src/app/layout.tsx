@@ -1,13 +1,15 @@
-// src/app/layout.tsx
+import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Unity Notes',
-  description: 'Todos na mesma página',
+  description: 'Sistema de anotações para aulas',
 }
 
 export default function RootLayout({
@@ -16,10 +18,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt">
-      <body className={inter.className}>
-        {children}
+    <html lang="pt-BR" className={inter.className}>
+      <body className="min-h-screen bg-background">
+        <main className="min-h-screen">
+          {children}
+        </main>
       </body>
     </html>
-)
+  )
 }

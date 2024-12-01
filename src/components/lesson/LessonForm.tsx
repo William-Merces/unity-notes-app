@@ -100,12 +100,19 @@ const LessonForm = () => {
             discourse: discourse.url,
             slides: []
         }));
+        setSlideStatuses({});
+        setCurrentPreviewSlide(0);
     };
 
     const handleLoadDiscourse = async () => {
-        if (!formData.discourse) return;
+        if (!formData.discourse) {
+            setSubmitError('Selecione um discurso primeiro');
+            return;
+        }
 
         setIsLoadingDiscourse(true);
+        setSubmitError(null);
+
         try {
             const response = await fetch(`/api/discourse?url=${encodeURIComponent(formData.discourse)}`);
             if (!response.ok) {
@@ -125,7 +132,7 @@ const LessonForm = () => {
             }));
         } catch (error) {
             console.error('Erro ao carregar discurso:', error);
-            window.alert('Erro ao carregar o discurso. Tente novamente.');
+            setSubmitError('Erro ao carregar o discurso. Tente novamente.');
         } finally {
             setIsLoadingDiscourse(false);
         }
@@ -243,10 +250,10 @@ const LessonForm = () => {
                         type: resource.type,
                         content: resource.content || resource.question || '',
                         reference: resource.reference || null,
-                        options: resource.type === 'poll' 
-                            ? JSON.stringify({options: resource.options})
+                        options: resource.type === 'poll'
+                            ? JSON.stringify({ options: resource.options })
                             : resource.type === 'question'
-                                ? JSON.stringify({suggestions: resource.suggestions})
+                                ? JSON.stringify({ suggestions: resource.suggestions })
                                 : null
                     }))
                 }))
@@ -260,11 +267,12 @@ const LessonForm = () => {
                 body: JSON.stringify(requestData)
             });
 
-            const data = await response.json();
-
             if (!response.ok) {
+                const data = await response.json();
                 throw new Error(data.error || 'Erro ao salvar aula');
             }
+
+            const data = await response.json();
 
             if (!data.id) {
                 throw new Error('ID da aula não retornado');
@@ -285,8 +293,8 @@ const LessonForm = () => {
 
     return (
         <div className="w-full max-w-4xl mx-auto p-4">
-            <form onSubmit={handleSubmit}>
-                <Card className="mb-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <Card>
                     <CardHeader>
                         <CardTitle>Início da Aula</CardTitle>
                     </CardHeader>
@@ -329,7 +337,7 @@ const LessonForm = () => {
                     </CardContent>
                 </Card>
 
-                <Card className="mb-6">
+                <Card>
                     <CardHeader>
                         <CardTitle>Conteúdo</CardTitle>
                     </CardHeader>
@@ -364,7 +372,7 @@ const LessonForm = () => {
 
                         {formData.slides.length > 0 && (
                             <div className="mt-6 space-y-4">
-                                <Card className="relative h-[500px] flex flex-col">
+                                <Card className="relative">
                                     <div className="absolute right-2 top-2 flex gap-2">
                                         {!slideStatuses[currentPreviewSlide]?.rejected && (
                                             <Button
@@ -401,7 +409,7 @@ const LessonForm = () => {
                                         )}
                                     </div>
 
-                                    <CardContent className="flex-1 overflow-y-auto p-6">
+                                    <CardContent className="p-6 min-h-[300px] max-h-[500px] overflow-y-auto">
                                         <div className={`prose dark:prose-invert max-w-none ${slideStatuses[currentPreviewSlide]?.rejected ? 'opacity-50' : ''
                                             }`}>
                                             <p className="whitespace-pre-wrap">{formData.slides[currentPreviewSlide].content}</p>
@@ -409,12 +417,13 @@ const LessonForm = () => {
 
                                         {!slideStatuses[currentPreviewSlide]?.rejected && (
                                             <>
-                                                <div className="flex items-center gap-2 border-t pt-4 mt-4">
+                                                <div className="flex flex-wrap items-center gap-2 border-t pt-4 mt-4">
                                                     <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => handleAddResource('question')}
+                                                        className="flex-1 sm:flex-none"
                                                     >
                                                         <HelpCircle className="h-4 w-4 mr-2" />
                                                         Adicionar Pergunta
@@ -425,6 +434,7 @@ const LessonForm = () => {
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => handleAddResource('scripture')}
+                                                        className="flex-1 sm:flex-none"
                                                     >
                                                         <Book className="h-4 w-4 mr-2" />
                                                         Adicionar Escritura
@@ -435,6 +445,7 @@ const LessonForm = () => {
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => handleAddResource('poll')}
+                                                        className="flex-1 sm:flex-none"
                                                     >
                                                         <BarChart2 className="h-4 w-4 mr-2" />
                                                         Adicionar Enquete
@@ -511,16 +522,18 @@ const LessonForm = () => {
                                     </CardContent>
                                 </Card>
 
-                                <div className="flex justify-between items-center">
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <Button
                                         type="button"
                                         onClick={() => setCurrentPreviewSlide(prev => Math.max(0, prev - 1))}
                                         disabled={currentPreviewSlide === 0}
+                                        className="w-full sm:w-auto"
                                     >
                                         <ChevronLeft className="h-4 w-4 mr-2" />
                                         Slide Anterior
                                     </Button>
-                                    <div className="text-sm text-muted-foreground space-y-1 text-center">
+
+                                    <div className="text-sm text-muted-foreground text-center">
                                         <div>
                                             Slide {currentPreviewSlide + 1} de {formData.slides.length}
                                         </div>
@@ -528,11 +541,13 @@ const LessonForm = () => {
                                             {getActiveSlides().length} slides selecionados
                                         </div>
                                     </div>
+
                                     <Button
                                         type="button"
                                         onClick={() => setCurrentPreviewSlide(prev =>
                                             Math.min(formData.slides.length - 1, prev + 1))}
                                         disabled={currentPreviewSlide === formData.slides.length - 1}
+                                        className="w-full sm:w-auto"
                                     >
                                         Próximo Slide
                                         <ChevronRight className="h-4 w-4 ml-2" />
@@ -543,7 +558,7 @@ const LessonForm = () => {
                     </CardContent>
                 </Card>
 
-                <Card className="mb-6">
+                <Card>
                     <CardHeader>
                         <CardTitle>Fim da Aula</CardTitle>
                     </CardHeader>
@@ -573,11 +588,11 @@ const LessonForm = () => {
                     </CardContent>
                 </Card>
 
-                <div className="mt-6 flex justify-end gap-4">
+                <div className="mt-6 flex flex-col sm:flex-row justify-end gap-4">
                     {submitError && (
                         <p className="text-sm text-destructive self-center">{submitError}</p>
                     )}
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {isSubmitting ? 'Salvando...' : 'Salvar Aula'}
                     </Button>

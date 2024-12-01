@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
     try {
         // Primeiro vamos verificar se o usuário já existe
-        const existingUser = await prisma.user.findUnique({
+        const existingUser = await prisma.user.findFirst({
             where: {
                 email: "professor@teste.com"
             }

@@ -1,4 +1,3 @@
-// src/components/lesson/content-types/ScriptureDialog.tsx
 'use client';
 
 import React, { useState } from 'react';

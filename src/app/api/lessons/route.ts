@@ -1,47 +1,43 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+        console.log('Dados recebidos:', JSON.stringify(body, null, 2));
 
-        const lessonData: Prisma.LessonCreateInput = {
-            title: "Nova Aula",
-            firstHymn: body.firstHymn,
-            firstPrayer: body.firstPrayer,
-            announcements: body.announcements || null,
-            lastHymn: body.lastHymn,
-            lastPrayer: body.lastPrayer,
-            discourse: body.discourse,
-            discoursePath: '',
-            teacher: {
-                connect: {
-                    id: "cm437iq2m0000ttpwvv6xbnpx" // ID do professor de teste
-                }
-            },
-            slides: {
-                create: body.slides.map((slide: any, index: number) => ({
-                    order: index,
-                    content: slide.content,
-                    resources: {
-                        create: slide.resources?.map((resource: any) => ({
-                            type: resource.type,
-                            content: resource.content || resource.question || '',
-                            reference: resource.reference || null,
-                            options: resource.options
-                                ? JSON.stringify(resource.options)
-                                : null
-                        }))
-                    }
-                }))
-            }
-        };
+        const teacherId = await getOrCreateTeacherId();
 
         const lesson = await prisma.lesson.create({
-            data: lessonData,
+            data: {
+                title: body.title || "Nova Aula",
+                firstHymn: body.firstHymn,
+                firstPrayer: body.firstPrayer,
+                announcements: body.announcements,
+                lastHymn: body.lastHymn,
+                lastPrayer: body.lastPrayer,
+                discourse: body.discourse,
+                teacherId: teacherId,
+                slides: {
+                    create: body.slides.map((slide: any, index: number) => ({
+                        order: index,
+                        content: slide.content,
+                        resources: {
+                            create: slide.resources.map((resource: any) => ({
+                                type: resource.type,
+                                content: resource.content || resource.question || '',
+                                reference: resource.reference || null,
+                                options: resource.type === 'poll' 
+                                    ? JSON.stringify({ options: resource.options })
+                                    : resource.type === 'question'
+                                        ? JSON.stringify({ suggestions: resource.suggestions })
+                                        : null
+                            }))
+                        }
+                    }))
+                }
+            },
             include: {
-                teacher: true,
                 slides: {
                     include: {
                         resources: true
@@ -52,9 +48,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json(lesson);
     } catch (error) {
-        console.error('Error creating lesson:', error);
+        console.error('Erro ao criar aula:', error);
         return NextResponse.json(
-            { error: 'Error creating lesson' },
+            { error: 'Erro ao criar aula: ' + (error instanceof Error ? error.message : String(error)) },
             { status: 500 }
         );
     }
@@ -64,21 +60,45 @@ export async function GET() {
     try {
         const lessons = await prisma.lesson.findMany({
             include: {
-                teacher: true,
                 slides: {
                     include: {
                         resources: true
                     }
                 }
+            },
+            orderBy: {
+                createdAt: 'desc'
             }
         });
 
         return NextResponse.json(lessons);
     } catch (error) {
-        console.error('Error fetching lessons:', error);
+        console.error('Erro ao buscar aulas:', error);
         return NextResponse.json(
-            { error: 'Error fetching lessons' },
+            { error: 'Erro ao buscar aulas' },
             { status: 500 }
         );
     }
+}
+
+async function getOrCreateTeacherId(): Promise<string> {
+    const existingTeacher = await prisma.user.findFirst({
+        where: {
+            role: 'TEACHER'
+        }
+    });
+
+    if (existingTeacher) {
+        return existingTeacher.id;
+    }
+
+    const newTeacher = await prisma.user.create({
+        data: {
+            name: "Professor Teste",
+            email: "professor@teste.com",
+            role: "TEACHER"
+        }
+    });
+
+    return newTeacher.id;
 }

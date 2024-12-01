@@ -1,4 +1,3 @@
-// src/components/lesson/content-types/PollDialog.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -87,7 +86,7 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-2"
+                            className="mt-2 w-full"
                             onClick={handleAddOption}
                         >
                             <Plus className="h-4 w-4 mr-2" />

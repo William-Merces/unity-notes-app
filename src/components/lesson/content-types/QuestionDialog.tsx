@@ -1,4 +1,3 @@
-// src/components/lesson/content-types/QuestionDialog.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -22,7 +21,9 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
     };
 
     const handleRemoveSuggestion = (index: number) => {
-        setSuggestions(suggestions.filter((_, i) => i !== index));
+        if (suggestions.length > 1) {
+            setSuggestions(suggestions.filter((_, i) => i !== index));
+        }
     };
 
     const handleSuggestionChange = (index: number, value: string) => {
@@ -53,6 +54,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                             placeholder="Digite a pergunta..."
                             value={question}
                             onChange={(e) => setQuestion(e.target.value)}
+                            className="resize-none"
                         />
                     </div>
 
@@ -71,6 +73,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                                             type="button"
                                             variant="ghost"
                                             size="icon"
+                                            className="shrink-0"
                                             onClick={() => handleRemoveSuggestion(index)}
                                         >
                                             <X className="h-4 w-4" />
@@ -83,7 +86,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-2"
+                            className="w-full mt-2"
                             onClick={handleAddSuggestion}
                         >
                             <Plus className="h-4 w-4 mr-2" />
@@ -96,7 +99,11 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                         Cancelar
                     </Button>
-                    <Button type="button" onClick={handleSave} disabled={!question.trim()}>
+                    <Button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={!question.trim()}
+                    >
                         Salvar
                     </Button>
                 </div>
