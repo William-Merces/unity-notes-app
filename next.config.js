@@ -11,10 +11,8 @@ const nextConfig = {
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
-  },
-  experimental: {
-    serverActions: true,
   }
+  // Removemos apenas o experimental.serverActions pois não é mais necessário
 };
 
 module.exports = nextConfig;
