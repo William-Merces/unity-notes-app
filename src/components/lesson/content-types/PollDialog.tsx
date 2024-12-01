@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog/dialog';
 import { Input } from '@/components/ui/input/input';
 import { Button } from '@/components/ui/button/button';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, BarChart2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PollDialogProps {
     open: boolean;
@@ -15,6 +16,12 @@ interface PollDialogProps {
 export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
     const [question, setQuestion] = useState('');
     const [options, setOptions] = useState<string[]>(['', '']); // Mínimo de duas opções
+    const [isValid, setIsValid] = useState(false);
+
+    const validateForm = () => {
+        const validOptions = options.filter(opt => opt.trim().length > 0);
+        setIsValid(question.trim().length > 0 && validOptions.length >= 2);
+    };
 
     const handleAddOption = () => {
         setOptions([...options, '']);
@@ -23,16 +30,18 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
     const handleRemoveOption = (index: number) => {
         if (options.length > 2) {
             setOptions(options.filter((_, i) => i !== index));
+            validateForm();
         }
     };
 
     const handleOptionChange = (index: number, value: string) => {
         setOptions(options.map((opt, i) => i === index ? value : opt));
+        validateForm();
     };
 
     const handleSave = () => {
-        const validOptions = options.filter(opt => opt.trim() !== '');
-        if (validOptions.length >= 2) {
+        if (isValid) {
+            const validOptions = options.filter(opt => opt.trim().length > 0);
             onSave({
                 question,
                 options: validOptions
@@ -47,23 +56,40 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Adicionar Enquete</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                        <BarChart2 className="h-5 w-5 text-primary" />
+                        Adicionar Enquete
+                    </DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+
+                <motion.div
+                    className="grid gap-4 py-4"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                >
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Pergunta da Enquete</label>
                         <Input
                             placeholder="Digite a pergunta..."
                             value={question}
-                            onChange={(e) => setQuestion(e.target.value)}
+                            onChange={(e) => {
+                                setQuestion(e.target.value);
+                                validateForm();
+                            }}
                         />
                     </div>
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Opções de Resposta</label>
-                        <div className="space-y-2">
+                        <AnimatePresence>
                             {options.map((option, index) => (
-                                <div key={index} className="flex gap-2">
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="flex gap-2 mb-2"
+                                >
                                     <Input
                                         placeholder={`Opção ${index + 1}`}
                                         value={option}
@@ -79,32 +105,44 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
                                             <X className="h-4 w-4" />
                                         </Button>
                                     )}
-                                </div>
+                                </motion.div>
                             ))}
-                        </div>
+                        </AnimatePresence>
+
                         <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="mt-2 w-full"
+                            className="w-full"
                             onClick={handleAddOption}
                         >
                             <Plus className="h-4 w-4 mr-2" />
                             Adicionar Opção
                         </Button>
                     </div>
-                </div>
+                </motion.div>
 
                 <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => onOpenChange(false)}
+                    >
                         Cancelar
                     </Button>
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={!question.trim() || options.filter(opt => opt.trim() !== '').length < 2}
+                        disabled={!isValid}
+                        className="relative"
                     >
-                        Salvar
+                        <motion.div
+                            initial={false}
+                            animate={isValid ? { scale: [1, 1.05, 1] } : {}}
+                            transition={{ duration: 0.2 }}
+                        >
+                            Salvar
+                        </motion.div>
                     </Button>
                 </div>
             </DialogContent>

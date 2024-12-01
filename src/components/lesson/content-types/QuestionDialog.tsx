@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog/dialog';
 import { Input } from '@/components/ui/input/input';
 import { Button } from '@/components/ui/button/button';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, HelpCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface QuestionDialogProps {
     open: boolean;
@@ -45,8 +46,12 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Adicionar Pergunta</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                        <HelpCircle className="h-5 w-5 text-primary" />
+                        Adicionar Pergunta
+                    </DialogTitle>
                 </DialogHeader>
+
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Pergunta</label>
@@ -60,9 +65,15 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Sugestões de Resposta (opcional)</label>
-                        <div className="space-y-2">
+                        <AnimatePresence>
                             {suggestions.map((suggestion, index) => (
-                                <div key={index} className="flex gap-2">
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="flex gap-2 mb-2"
+                                >
                                     <Input
                                         placeholder={`Sugestão ${index + 1}`}
                                         value={suggestion}
@@ -79,9 +90,10 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                                             <X className="h-4 w-4" />
                                         </Button>
                                     )}
-                                </div>
+                                </motion.div>
                             ))}
-                        </div>
+                        </AnimatePresence>
+
                         <Button
                             type="button"
                             variant="outline"

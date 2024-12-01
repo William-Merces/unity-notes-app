@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button/button';
 import { Input } from '@/components/ui/input/input';
 import { Card } from '@/components/ui/card/card';
+import { Music2, ExternalLink } from 'lucide-react';
 
 // Interface para os hinos
 interface Hymn {
@@ -23,7 +24,7 @@ const HymnSelector = ({
 
     // Lista de hinos processada
     const hymns = useMemo(() => {
-        // Processa os URLs para extrair os títulos e números
+        // Mantém a mesma lista de hinos que você já tem
         return [
             { number: 1, title: "A Alva Rompe", url: "https://www.churchofjesuschrist.org/media/music/songs/the-morning-breaks?crumbs=hymns&lang=por" },
             { number: 2, title: "Tal Como um Facho", url: "https://www.churchofjesuschrist.org/media/music/songs/the-spirit-of-god?crumbs=hymns&lang=por" },
@@ -230,7 +231,8 @@ const HymnSelector = ({
             { number: 203, title: "Ó Élderes de Israel", url: "https://www.churchofjesuschrist.org/media/music/songs/ye-elders-of-israel?crumbs=hymns&lang=por" },
             { number: 204, title: "Ó Vós, Que Sois Chamados", url: "https://www.churchofjesuschrist.org/media/music/songs/ye-who-are-called-to-labor?crumbs=hymns&lang=por" },
         ];
-    }, []);
+    },
+        []);
 
     // Filtra os hinos baseado no termo de busca
     const filteredHymns = useMemo(() => {
@@ -246,6 +248,16 @@ const HymnSelector = ({
         return hymns.find(hymn => hymn.url === value);
     }, [hymns, value]);
 
+    const handleHymnClick = (hymn: Hymn) => {
+        onChange(hymn);
+        setIsOpen(false);
+    };
+
+    const openHymnInNewTab = (url: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.open(url, '_blank');
+    };
+
     return (
         <div className="w-full">
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -254,9 +266,21 @@ const HymnSelector = ({
                         variant="outline"
                         className="w-full justify-start text-left font-normal"
                     >
-                        {selectedHymn
-                            ? `${selectedHymn.number} - ${selectedHymn.title}`
-                            : "Selecione um hino..."}
+                        {selectedHymn ? (
+                            <div className="flex items-center gap-2 w-full">
+                                <Music2 className="h-4 w-4 text-primary" />
+                                <span>{selectedHymn.number} - {selectedHymn.title}</span>
+                                <ExternalLink
+                                    className="h-4 w-4 ml-auto text-muted-foreground hover:text-primary"
+                                    onClick={(e) => openHymnInNewTab(selectedHymn.url, e)}
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <Music2 className="h-4 w-4" />
+                                <span>Selecione um hino...</span>
+                            </div>
+                        )}
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[80vh]">
@@ -274,15 +298,17 @@ const HymnSelector = ({
                             {filteredHymns.map((hymn) => (
                                 <Card
                                     key={hymn.number}
-                                    className="p-3 cursor-pointer hover:bg-accent"
-                                    onClick={() => {
-                                        onChange(hymn);
-                                        setIsOpen(false);
-                                    }}
+                                    className="p-3 cursor-pointer hover:bg-accent relative group"
+                                    onClick={() => handleHymnClick(hymn)}
                                 >
-                                    <div className="flex items-center">
-                                        <span className="font-medium mr-2">{hymn.number}</span>
+                                    <div className="flex items-center gap-2">
+                                        <Music2 className="h-4 w-4 text-primary" />
+                                        <span className="font-medium">{hymn.number}</span>
                                         <span>{hymn.title}</span>
+                                        <ExternalLink
+                                            className="h-4 w-4 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={(e) => openHymnInNewTab(hymn.url, e)}
+                                        />
                                     </div>
                                 </Card>
                             ))}

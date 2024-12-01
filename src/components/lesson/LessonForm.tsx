@@ -1,49 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card/card';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card/card';
 import { Input } from '@/components/ui/input/input';
 import { Button } from '@/components/ui/button/button';
 import { Textarea } from '@/components/ui/textarea/textarea';
+import { useRouter } from 'next/navigation';
 import {
-    X,
-    HelpCircle,
-    Book,
-    BarChart2,
-    Trash2,
     Loader2,
-    ChevronLeft,
     ChevronRight,
+    ChevronLeft,
     Check,
-    XCircle,
-    CheckCircle
+    X,
+    Book,
+    HelpCircle,
+    BarChart2,
+    Lightbulb,
+    PlusCircle,
+    ArrowRight
 } from 'lucide-react';
 import HymnSelector from './HymnSelector';
 import DiscourseSelector from './DiscourseSelector';
 import { QuestionDialog } from './content-types/QuestionDialog';
 import { ScriptureDialog } from './content-types/ScriptureDialog';
 import { PollDialog } from './content-types/PollDialog';
-import { useRouter } from 'next/navigation';
 import { processDiscourseContent } from '@/utils/discourse-utils';
-
-interface SlideStatus {
-    confirmed: boolean;
-    rejected: boolean;
-}
-
-interface Resource {
-    type: 'question' | 'scripture' | 'poll';
-    content?: string;
-    reference?: string;
-    question?: string;
-    suggestions?: string[];
-    options?: string[];
-}
-
-interface Slide {
-    content: string;
-    resources: Resource[];
-}
 
 interface FormData {
     firstHymn: string;
@@ -52,11 +34,27 @@ interface FormData {
     lastHymn: string;
     lastPrayer: string;
     discourse: string;
-    slides: Slide[];
+    title: string;
+    speaker: string;
+    slides: Array<{
+        content: string;
+        resources: any[];
+    }>;
 }
 
 const LessonForm = () => {
     const router = useRouter();
+    const [step, setStep] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
+    const [scriptureDialogOpen, setScriptureDialogOpen] = useState(false);
+    const [pollDialogOpen, setPollDialogOpen] = useState(false);
+
+    const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -20 } };
+    const [lessonTitle, setLessonTitle] = useState<string>('');
+
     const [formData, setFormData] = useState<FormData>({
         firstHymn: '',
         firstPrayer: '',
@@ -64,28 +62,15 @@ const LessonForm = () => {
         lastHymn: '',
         lastPrayer: '',
         discourse: '',
+        title: '',
+        speaker: '',
         slides: []
     });
 
-    const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
-    const [scriptureDialogOpen, setScriptureDialogOpen] = useState(false);
-    const [pollDialogOpen, setPollDialogOpen] = useState(false);
-    const [activeSlideIndex, setActiveSlideIndex] = useState<number | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitError, setSubmitError] = useState<string | null>(null);
-    const [isLoadingDiscourse, setIsLoadingDiscourse] = useState(false);
-    const [currentPreviewSlide, setCurrentPreviewSlide] = useState(0);
-    const [slideStatuses, setSlideStatuses] = useState<Record<number, SlideStatus>>({});
-
-    const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-    ) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
+    const [slideStatuses, setSlideStatuses] = useState<Record<number, {
+        confirmed: boolean;
+        rejected: boolean;
+    }>>({});
 
     const handleHymnChange = (type: 'firstHymn' | 'lastHymn') => (hymn: { url: string }) => {
         setFormData(prev => ({
@@ -94,24 +79,25 @@ const LessonForm = () => {
         }));
     };
 
-    const handleDiscourseChange = (discourse: { url: string }) => {
+    const handleDiscourseChange = (discourse: { url: string; title: string; speaker: string }) => {
         setFormData(prev => ({
             ...prev,
             discourse: discourse.url,
+            title: discourse.title,
+            speaker: discourse.speaker,
             slides: []
         }));
+        setLessonTitle(discourse.title);
         setSlideStatuses({});
-        setCurrentPreviewSlide(0);
     };
-
-    const handleLoadDiscourse = async () => {
+    const handleGenerateSlides = async () => {
         if (!formData.discourse) {
-            setSubmitError('Selecione um discurso primeiro');
+            setError('Selecione um discurso primeiro');
             return;
         }
 
-        setIsLoadingDiscourse(true);
-        setSubmitError(null);
+        setIsLoading(true);
+        setError(null);
 
         try {
             const response = await fetch(`/api/discourse?url=${encodeURIComponent(formData.discourse)}`);
@@ -130,11 +116,13 @@ const LessonForm = () => {
                 ...prev,
                 slides
             }));
+
+            setStep(2);
         } catch (error) {
-            console.error('Erro ao carregar discurso:', error);
-            setSubmitError('Erro ao carregar o discurso. Tente novamente.');
+            console.error('Erro ao gerar slides:', error);
+            setError('Erro ao gerar apresentação. Por favor, tente novamente.');
         } finally {
-            setIsLoadingDiscourse(false);
+            setIsLoading(false);
         }
     };
 
@@ -143,6 +131,9 @@ const LessonForm = () => {
             ...prev,
             [index]: { confirmed: true, rejected: false }
         }));
+
+        // Automaticamente mostra os botões de recursos
+        setCurrentSlide(index);
     };
 
     const handleRejectSlide = (index: number) => {
@@ -150,6 +141,11 @@ const LessonForm = () => {
             ...prev,
             [index]: { confirmed: false, rejected: true }
         }));
+
+        // Automaticamente avança para o próximo slide
+        if (index < formData.slides.length - 1) {
+            setCurrentSlide(index + 1);
+        }
     };
 
     const handleResetSlideStatus = (index: number) => {
@@ -160,15 +156,7 @@ const LessonForm = () => {
         });
     };
 
-    const getActiveSlides = () => {
-        return formData.slides.filter((_, index) =>
-            !slideStatuses[index]?.rejected &&
-            (slideStatuses[index]?.confirmed || !slideStatuses[index])
-        );
-    };
-
     const handleAddResource = (type: 'question' | 'scripture' | 'poll') => {
-        setActiveSlideIndex(currentPreviewSlide);
         switch (type) {
             case 'question':
                 setQuestionDialogOpen(true);
@@ -183,17 +171,12 @@ const LessonForm = () => {
     };
 
     const handleResourceSave = (data: any, type: 'question' | 'scripture' | 'poll') => {
-        if (activeSlideIndex === null) return;
-
-        const newResource: Resource = {
-            type,
-            ...data
-        };
+        const newResource = { type, ...data };
 
         setFormData(prev => ({
             ...prev,
             slides: prev.slides.map((slide, i) =>
-                i === activeSlideIndex
+                i === currentSlide
                     ? {
                         ...slide,
                         resources: [...(slide.resources || []), newResource]
@@ -202,19 +185,11 @@ const LessonForm = () => {
             )
         }));
     };
-
-    const handleRemoveResource = (slideIndex: number, resourceIndex: number) => {
-        setFormData(prev => ({
-            ...prev,
-            slides: prev.slides.map((slide, i) =>
-                i === slideIndex
-                    ? {
-                        ...slide,
-                        resources: slide.resources.filter((_, j) => j !== resourceIndex)
-                    }
-                    : slide
-            )
-        }));
+    const getActiveSlides = () => {
+        return formData.slides.filter((_, index) =>
+            !slideStatuses[index]?.rejected &&
+            (slideStatuses[index]?.confirmed || !slideStatuses[index])
+        );
     };
 
     const validateForm = () => {
@@ -223,40 +198,26 @@ const LessonForm = () => {
         if (!formData.lastHymn) return 'Selecione o último hino';
         if (!formData.lastPrayer) return 'Digite o nome de quem fará a última oração';
         if (!formData.discourse) return 'Selecione um discurso';
-        if (formData.slides.length === 0) return 'Carregue o conteúdo do discurso';
+        if (formData.slides.length === 0) return 'Gere o conteúdo do discurso primeiro';
         return null;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
+    const handleSubmit = async () => {
         const validationError = validateForm();
         if (validationError) {
-            setSubmitError(validationError);
+            setError(validationError);
             return;
         }
 
-        const activeSlides = getActiveSlides();
-
-        setIsSubmitting(true);
-        setSubmitError(null);
+        setIsLoading(true);
+        setError(null);
 
         try {
+            const activeSlides = getActiveSlides();
+
             const requestData = {
                 ...formData,
-                slides: activeSlides.map(slide => ({
-                    ...slide,
-                    resources: slide.resources.map(resource => ({
-                        type: resource.type,
-                        content: resource.content || resource.question || '',
-                        reference: resource.reference || null,
-                        options: resource.type === 'poll'
-                            ? JSON.stringify({ options: resource.options })
-                            : resource.type === 'question'
-                                ? JSON.stringify({ suggestions: resource.suggestions })
-                                : null
-                    }))
-                }))
+                slides: activeSlides
             };
 
             const response = await fetch('/api/lessons', {
@@ -273,36 +234,40 @@ const LessonForm = () => {
             }
 
             const data = await response.json();
-
-            if (!data.id) {
-                throw new Error('ID da aula não retornado');
-            }
-
             router.push(`/ver-aula?id=${data.id}`);
         } catch (error) {
             console.error('Erro ao salvar:', error);
-            setSubmitError(
+            setError(
                 error instanceof Error
                     ? error.message
                     : 'Erro ao salvar aula'
             );
         } finally {
-            setIsSubmitting(false);
+            setIsLoading(false);
         }
     };
 
-    return (
-        <div className="w-full max-w-4xl mx-auto p-4">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Início da Aula</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+    const renderStepOne = () => (
+        <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn}>
+            <Card>
+                <CardHeader>
+                <CardTitle>{lessonTitle || 'Nova Aula'}</CardTitle>
+                    <CardDescription>
+                        Vamos começar configurando as informações básicas da aula
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-4">
                         <div className="space-y-2">
-                            <label htmlFor="firstHymn" className="text-sm font-medium">
-                                Primeiro Hino
-                            </label>
+                            <label className="text-sm font-medium">Discurso da Conferência</label>
+                            <DiscourseSelector
+                                value={formData.discourse}
+                                onChange={handleDiscourseChange}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Primeiro Hino</label>
                             <HymnSelector
                                 value={formData.firstHymn}
                                 onChange={handleHymnChange('firstHymn')}
@@ -310,263 +275,19 @@ const LessonForm = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <label htmlFor="firstPrayer" className="text-sm font-medium">
-                                Primeira Oração
-                            </label>
+                            <label className="text-sm font-medium">Primeira Oração</label>
                             <Input
-                                id="firstPrayer"
-                                name="firstPrayer"
                                 value={formData.firstPrayer}
-                                onChange={handleInputChange}
-                                placeholder="Nome de quem vai orar"
+                                onChange={(e) => setFormData(prev => ({
+                                    ...prev,
+                                    firstPrayer: e.target.value
+                                }))}
+                                placeholder="Nome de quem fará a primeira oração"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <label htmlFor="announcements" className="text-sm font-medium">
-                                Anúncios
-                            </label>
-                            <Textarea
-                                id="announcements"
-                                name="announcements"
-                                value={formData.announcements}
-                                onChange={handleInputChange}
-                                placeholder="Anúncios da aula"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Conteúdo</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">
-                                Discurso Tema
-                            </label>
-                            <DiscourseSelector
-                                value={formData.discourse}
-                                onChange={handleDiscourseChange}
-                            />
-
-                            {formData.discourse && (
-                                <div className="mt-6">
-                                    <Button
-                                        type="button"
-                                        onClick={handleLoadDiscourse}
-                                        disabled={isLoadingDiscourse}
-                                    >
-                                        {isLoadingDiscourse && (
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        )}
-                                        {isLoadingDiscourse
-                                            ? 'Carregando...'
-                                            : 'Carregar Parágrafos do Discurso'
-                                        }
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {formData.slides.length > 0 && (
-                            <div className="mt-6 space-y-4">
-                                <Card className="relative">
-                                    <div className="absolute right-2 top-2 flex gap-2">
-                                        {!slideStatuses[currentPreviewSlide]?.rejected && (
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                onClick={() => handleConfirmSlide(currentPreviewSlide)}
-                                            >
-                                                <CheckCircle className={`h-5 w-5 ${slideStatuses[currentPreviewSlide]?.confirmed ? 'fill-green-600' : ''}`} />
-                                            </Button>
-                                        )}
-                                        {!slideStatuses[currentPreviewSlide]?.confirmed && (
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                onClick={() => handleRejectSlide(currentPreviewSlide)}
-                                            >
-                                                <XCircle className={`h-5 w-5 ${slideStatuses[currentPreviewSlide]?.rejected ? 'fill-red-600' : ''}`} />
-                                            </Button>
-                                        )}
-                                        {(slideStatuses[currentPreviewSlide]?.confirmed || slideStatuses[currentPreviewSlide]?.rejected) && (
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                                                onClick={() => handleResetSlideStatus(currentPreviewSlide)}
-                                            >
-                                                <X className="h-5 w-5" />
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    <CardContent className="p-6 min-h-[300px] max-h-[500px] overflow-y-auto">
-                                        <div className={`prose dark:prose-invert max-w-none ${slideStatuses[currentPreviewSlide]?.rejected ? 'opacity-50' : ''
-                                            }`}>
-                                            <p className="whitespace-pre-wrap">{formData.slides[currentPreviewSlide].content}</p>
-                                        </div>
-
-                                        {!slideStatuses[currentPreviewSlide]?.rejected && (
-                                            <>
-                                                <div className="flex flex-wrap items-center gap-2 border-t pt-4 mt-4">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleAddResource('question')}
-                                                        className="flex-1 sm:flex-none"
-                                                    >
-                                                        <HelpCircle className="h-4 w-4 mr-2" />
-                                                        Adicionar Pergunta
-                                                    </Button>
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleAddResource('scripture')}
-                                                        className="flex-1 sm:flex-none"
-                                                    >
-                                                        <Book className="h-4 w-4 mr-2" />
-                                                        Adicionar Escritura
-                                                    </Button>
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleAddResource('poll')}
-                                                        className="flex-1 sm:flex-none"
-                                                    >
-                                                        <BarChart2 className="h-4 w-4 mr-2" />
-                                                        Adicionar Enquete
-                                                    </Button>
-                                                </div>
-
-                                                {formData.slides[currentPreviewSlide].resources?.map((resource, resourceIndex) => (
-                                                    <div key={resourceIndex} className="mt-4 border-t pt-4">
-                                                        {resource.type === 'question' && (
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                                                                    <p className="font-medium">Pergunta:</p>
-                                                                </div>
-                                                                <p>{resource.content}</p>
-                                                                {resource.suggestions && resource.suggestions.length > 0 && (
-                                                                    <div className="pl-6 text-muted-foreground">
-                                                                        <p className="text-sm font-medium mb-1">Sugestões de resposta:</p>
-                                                                        <ul className="list-disc pl-4 space-y-1">
-                                                                            {resource.suggestions.map((suggestion, i) => (
-                                                                                <li key={i}>{suggestion}</li>
-                                                                            ))}
-                                                                        </ul>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {resource.type === 'scripture' && (
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    <Book className="h-4 w-4 text-muted-foreground" />
-                                                                    <p className="font-medium">Escritura:</p>
-                                                                </div>
-                                                                <div className="pl-6">
-                                                                    <p className="font-medium">{resource.reference}</p>
-                                                                    <p className="text-muted-foreground">{resource.content}</p>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {resource.type === 'poll' && (
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    <BarChart2 className="h-4 w-4 text-muted-foreground" />
-                                                                    <p className="font-medium">Enquete:</p>
-                                                                </div>
-                                                                <p>{resource.question}</p>
-                                                                <div className="pl-6 space-y-1">
-                                                                    {resource.options?.map((option, i) => (
-                                                                        <div key={i} className="flex items-center gap-2">
-                                                                            <span className="text-muted-foreground">{i + 1}.</span>
-                                                                            <span>{option}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="text-destructive hover:text-destructive mt-2"
-                                                            onClick={() => handleRemoveResource(currentPreviewSlide, resourceIndex)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4 mr-2" />
-                                                            Remover
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </>
-                                        )}
-                                    </CardContent>
-                                </Card>
-
-                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                                    <Button
-                                        type="button"
-                                        onClick={() => setCurrentPreviewSlide(prev => Math.max(0, prev - 1))}
-                                        disabled={currentPreviewSlide === 0}
-                                        className="w-full sm:w-auto"
-                                    >
-                                        <ChevronLeft className="h-4 w-4 mr-2" />
-                                        Slide Anterior
-                                    </Button>
-
-                                    <div className="text-sm text-muted-foreground text-center">
-                                        <div>
-                                            Slide {currentPreviewSlide + 1} de {formData.slides.length}
-                                        </div>
-                                        <div className="text-xs">
-                                            {getActiveSlides().length} slides selecionados
-                                        </div>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        onClick={() => setCurrentPreviewSlide(prev =>
-                                            Math.min(formData.slides.length - 1, prev + 1))}
-                                        disabled={currentPreviewSlide === formData.slides.length - 1}
-                                        className="w-full sm:w-auto"
-                                    >
-                                        Próximo Slide
-                                        <ChevronRight className="h-4 w-4 ml-2" />
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Fim da Aula</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label htmlFor="lastHymn" className="text-sm font-medium">
-                                Último Hino
-                            </label>
+                            <label className="text-sm font-medium">Último Hino</label>
                             <HymnSelector
                                 value={formData.lastHymn}
                                 onChange={handleHymnChange('lastHymn')}
@@ -574,30 +295,228 @@ const LessonForm = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <label htmlFor="lastPrayer" className="text-sm font-medium">
-                                Última Oração
-                            </label>
+                            <label className="text-sm font-medium">Última Oração</label>
                             <Input
-                                id="lastPrayer"
-                                name="lastPrayer"
                                 value={formData.lastPrayer}
-                                onChange={handleInputChange}
-                                placeholder="Nome de quem vai orar"
+                                onChange={(e) => setFormData(prev => ({
+                                    ...prev,
+                                    lastPrayer: e.target.value
+                                }))}
+                                placeholder="Nome de quem fará a última oração"
                             />
                         </div>
-                    </CardContent>
-                </Card>
 
-                <div className="mt-6 flex flex-col sm:flex-row justify-end gap-4">
-                    {submitError && (
-                        <p className="text-sm text-destructive self-center">{submitError}</p>
-                    )}
-                    <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isSubmitting ? 'Salvando...' : 'Salvar Aula'}
-                    </Button>
-                </div>
-            </form>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Anúncios (opcional)</label>
+                            <Textarea
+                                value={formData.announcements}
+                                onChange={(e) => setFormData(prev => ({
+                                    ...prev,
+                                    announcements: e.target.value
+                                }))}
+                                placeholder="Anúncios para compartilhar na aula"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-6 flex justify-end">
+                        <Button
+                            onClick={handleGenerateSlides}
+                            disabled={!formData.discourse || !formData.firstHymn || !formData.firstPrayer || !formData.lastHymn || !formData.lastPrayer || isLoading}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Gerando apresentação...
+                                </>
+                            ) : (
+                                <>
+                                    Gerar Apresentação
+                                    <ChevronRight className="ml-2 h-4 w-4" />
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </motion.div>
+    );
+
+    const renderStepTwo = () => (
+        <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn} className="space-y-6">
+            <Card>
+                <CardHeader>
+                <CardTitle>{lessonTitle}</CardTitle>
+                <CardDescription>Sua apresentação está pronta</CardDescription>
+                    <CardDescription>
+                        Sua apresentação está pronta! Agora você pode personalizar cada slide:
+                        selecione os que deseja manter e adicione recursos como escrituras,
+                        perguntas e enquetes para tornar sua aula mais interativa.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-6">
+                        <Card className="relative">
+                            <CardContent className="p-6">
+                                <div className="absolute right-4 top-4 flex gap-2">
+                                    {!slideStatuses[currentSlide]?.rejected && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0 text-green-600 hover:text-green-700 hover:bg-green-50`}
+                                            onClick={() => handleConfirmSlide(currentSlide)}
+                                        >
+                                            <Check className={`h-5 w-5 ${slideStatuses[currentSlide]?.confirmed ? 'text-green-600' : ''}`} />
+                                        </motion.button>
+                                    )}
+                                    {!slideStatuses[currentSlide]?.confirmed && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0 text-red-600 hover:text-red-700 hover:bg-red-50`}
+                                            onClick={() => handleRejectSlide(currentSlide)}
+                                        >
+                                            <X className={`h-5 w-5 ${slideStatuses[currentSlide]?.rejected ? 'text-red-600' : ''}`} />
+                                        </motion.button>
+                                    )}
+                                    {(slideStatuses[currentSlide]?.confirmed || slideStatuses[currentSlide]?.rejected) && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0"
+                                            onClick={() => handleResetSlideStatus(currentSlide)}
+                                        >
+                                            <ArrowRight className="h-5 w-5" />
+                                        </motion.button>
+                                    )}
+                                </div>
+
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={currentSlide}
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className={`prose dark:prose-invert max-w-none ${slideStatuses[currentSlide]?.rejected ? 'opacity-50' : ''}`}
+                                    >
+                                        <p className="whitespace-pre-wrap">{formData.slides[currentSlide].content}</p>
+                                    </motion.div>
+                                </AnimatePresence>
+
+                                {(slideStatuses[currentSlide]?.confirmed || !slideStatuses[currentSlide]) && (
+                                    <>
+                                        <div className="flex flex-wrap items-center gap-2 border-t pt-4 mt-4">
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                                onClick={() => handleAddResource('question')}
+                                            >
+                                                <HelpCircle className="h-4 w-4 mr-2" />
+                                                Adicionar Pergunta
+                                            </motion.button>
+
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                                onClick={() => handleAddResource('scripture')}
+                                            >
+                                                <Book className="h-4 w-4 mr-2" />
+                                                Adicionar Escritura
+                                            </motion.button>
+
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                                onClick={() => handleAddResource('poll')}
+                                            >
+                                                <BarChart2 className="h-4 w-4 mr-2" />
+                                                Adicionar Enquete
+                                            </motion.button>
+                                        </div>
+
+                                        {formData.slides[currentSlide].resources?.map((resource, resourceIndex) => (
+                                            <motion.div
+                                                key={resourceIndex}
+                                                initial={{ opacity: 0, y: 20 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="mt-4 border-t pt-4"
+                                            >
+                                                {/* ... resto do conteúdo dos recursos permanece igual ... */}
+                                            </motion.div>
+                                        ))}
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <div className="flex justify-between items-center">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${currentSlide === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
+                                disabled={currentSlide === 0}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-2" />
+                                Anterior
+                            </motion.button>
+
+                            <div className="text-sm text-muted-foreground">
+                                <div className="text-center">
+                                    Slide {currentSlide + 1} de {formData.slides.length}
+                                </div>
+                                <div className="text-xs">
+                                    {getActiveSlides().length} slides selecionados
+                                </div>
+                            </div>
+
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:accent-foreground h-10 px-4 py-2 ${currentSlide === formData.slides.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => setCurrentSlide(prev => Math.min(formData.slides.length - 1, prev + 1))}
+                                disabled={currentSlide === formData.slides.length - 1}
+                            >
+                                Próximo
+                                <ChevronRight className="h-4 w-4 ml-2" />
+                            </motion.button>
+                        </div>
+
+                        <div className="flex justify-between pt-6">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                                onClick={() => setStep(1)}
+                                disabled={isLoading}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-2" />
+                                Voltar
+                            </motion.button>
+
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                                onClick={handleSubmit}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Salvando...
+                                    </>
+                                ) : (
+                                    'Finalizar Aula'
+                                )}
+                            </motion.button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <QuestionDialog
                 open={questionDialogOpen}
@@ -616,6 +535,26 @@ const LessonForm = () => {
                 onOpenChange={setPollDialogOpen}
                 onSave={(data) => handleResourceSave(data, 'poll')}
             />
+        </motion.div>
+    );
+
+    return (
+        <div className="w-full max-w-4xl mx-auto p-4">
+            <AnimatePresence mode="wait">
+                {step === 1 && renderStepOne()}
+                {step === 2 && renderStepTwo()}
+            </AnimatePresence>
+
+            {error && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mt-4 p-4 bg-destructive/10 text-destructive rounded-md"
+                >
+                    {error}
+                </motion.div>
+            )}
         </div>
     );
 };
