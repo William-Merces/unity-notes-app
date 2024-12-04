@@ -1,10 +1,9 @@
 // src/contexts/LessonContext.tsx
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthContext';
+import { pusherClient } from '@/lib/pusher';
 
 interface Participant {
     userId: string;
@@ -46,7 +45,6 @@ export function LessonProvider({
     lessonId: string;
 }) {
     const { user } = useAuth();
-    const [socket, setSocket] = useState<WebSocket | null>(null);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isSync, setIsSync] = useState(false);
     const [participants, setParticipants] = useState<Participant[]>([]);
@@ -56,101 +54,110 @@ export function LessonProvider({
     const [isTeacher, setIsTeacher] = useState(false);
 
     useEffect(() => {
-        if (isSync && !socket) {
-            const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/lessons/${lessonId}`);
+        if (isSync && user) {
+            // Subscribe to the lesson channel
+            const channel = pusherClient.subscribe(`lesson-${lessonId}`);
 
-            ws.onopen = () => {
-                ws.send(JSON.stringify({
-                    type: 'JOIN',
+            // Join the lesson
+            fetch('/api/lessons/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     lessonId,
-                    userId: user?.id,
-                    userName: user?.name,
-                    isGuest: !user?.ward
+                    userId: user.id,
+                    userName: user.name,
+                    isGuest: !user.ward
+                })
+            });
+
+            // Listen to events
+            channel.bind('participants-update', (data: { participants: Participant[] }) => {
+                setParticipants(data.participants);
+            });
+
+            channel.bind('hand-raise', (data: { handRaise: HandRaise }) => {
+                setHandRaises(prev => [...prev, data.handRaise]);
+            });
+
+            channel.bind('hand-lower', (data: { userId: string }) => {
+                setHandRaises(prev => prev.filter(h => h.userId !== data.userId));
+            });
+
+            channel.bind('poll-update', (data: { pollId: string, results: Record<string, number> }) => {
+                setPollResults(prev => ({
+                    ...prev,
+                    [data.pollId]: data.results
                 }));
+            });
+
+            channel.bind('slide-change', (data: { slide: number }) => {
+                setCurrentSlide(data.slide);
+            });
+
+            channel.bind('teacher-status', (data: { isTeacher: boolean }) => {
+                setIsTeacher(data.isTeacher);
+            });
+
+            return () => {
+                pusherClient.unsubscribe(`lesson-${lessonId}`);
             };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-
-                switch (data.type) {
-                    case 'PARTICIPANTS_UPDATE':
-                        setParticipants(data.participants);
-                        break;
-
-                    case 'HAND_RAISE':
-                        setHandRaises(prev => [...prev, data.handRaise]);
-                        break;
-
-                    case 'HAND_LOWER':
-                        setHandRaises(prev =>
-                            prev.filter(h => h.userId !== data.userId)
-                        );
-                        break;
-
-                    case 'POLL_UPDATE':
-                        setPollResults(prev => ({
-                            ...prev,
-                            [data.pollId]: data.results
-                        }));
-                        break;
-
-                    case 'SLIDE_CHANGE':
-                        setCurrentSlide(data.slide);
-                        break;
-
-                    case 'TEACHER_STATUS':
-                        setIsTeacher(data.isTeacher);
-                        break;
-                }
-            };
-
-            setSocket(ws);
-            return () => ws.close();
         }
     }, [isSync, lessonId, user]);
 
     const raiseHand = async () => {
-        if (!raisedHand && socket) {
-            socket.send(JSON.stringify({
-                type: 'HAND_RAISE',
-                lessonId,
-                userId: user?.id,
-                userName: user?.name
-            }));
+        if (!raisedHand && user) {
+            await fetch('/api/lessons/raise-hand', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lessonId,
+                    userId: user.id,
+                    userName: user.name
+                })
+            });
             setRaisedHand(true);
         }
     };
 
     const lowerHand = async () => {
-        if (raisedHand && socket) {
-            socket.send(JSON.stringify({
-                type: 'HAND_LOWER',
-                lessonId,
-                userId: user?.id
-            }));
+        if (raisedHand && user) {
+            await fetch('/api/lessons/lower-hand', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lessonId,
+                    userId: user.id
+                })
+            });
             setRaisedHand(false);
         }
     };
 
     const votePoll = async (pollId: string, option: string) => {
-        if (socket) {
-            socket.send(JSON.stringify({
-                type: 'POLL_VOTE',
-                lessonId,
-                pollId,
-                userId: user?.id,
-                option
-            }));
+        if (user) {
+            await fetch('/api/lessons/vote-poll', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lessonId,
+                    pollId,
+                    userId: user.id,
+                    option
+                })
+            });
         }
     };
 
-    const giveVoice = (userId: string) => {
-        if (isTeacher && socket) {
-            socket.send(JSON.stringify({
-                type: 'GIVE_VOICE',
-                lessonId,
-                userId
-            }));
+    const giveVoice = async (userId: string) => {
+        if (isTeacher && user) {
+            await fetch('/api/lessons/give-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    lessonId,
+                    userId
+                })
+            });
         }
     };
 
