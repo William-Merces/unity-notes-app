@@ -1,5 +1,8 @@
+// src/components/room/RoomDisplay.tsx
+
 'use client';
 
+import { useLessonContext } from '@/contexts/LessonContext';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card/card';
@@ -13,14 +16,16 @@ import {
     BarChart2,
     Hand,
     Heart,
-    MessageCircle,
     Users,
     Lightbulb,
     PenTool,
     Copy,
     Check,
-    ExternalLink
+    ExternalLink,
+    Wifi,
+    WifiOff
 } from 'lucide-react';
+import { Lesson, Slide } from '@/types/lesson';
 
 const fadeIn = {
     initial: { opacity: 0, y: 20 },
@@ -29,47 +34,89 @@ const fadeIn = {
 };
 
 interface RoomDisplayProps {
-    lesson: any; // Você pode definir a interface completa do lesson aqui
+    lesson: Lesson;
 }
 
 export function RoomDisplay({ lesson }: RoomDisplayProps) {
-    const [currentSlide, setCurrentSlide] = useState(0);
+    const {
+        currentSlide,
+        setCurrentSlide,
+        isSync,
+        setIsSync,
+        participants,
+        handRaises,
+        raisedHand,
+        raiseHand,
+        lowerHand,
+        isTeacher,
+        giveVoice,
+        pollResults: contextPollResults,
+        votePoll: contextVotePoll
+    } = useLessonContext();
+
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [showPollResults, setShowPollResults] = useState(false);
     const [selectedPollOption, setSelectedPollOption] = useState<string | null>(null);
-    const [handRaised, setHandRaised] = useState(false);
     const [liked, setLiked] = useState(false);
     const [personalNote, setPersonalNote] = useState('');
     const [showNoteInput, setShowNoteInput] = useState(false);
-    const [participantCount, setParticipantCount] = useState(12);
-    const [handsRaisedCount, setHandsRaisedCount] = useState(3);
     const [reactionCount, setReactionCount] = useState(0);
     const [copied, setCopied] = useState(false);
 
-    const slides = [
-        {
-            type: 'welcome',
-            content: {
-                title: lesson.title || 'Aula da Escola Dominical',
-                hymn: lesson.firstHymn,
-                prayer: lesson.firstPrayer,
-                announcements: lesson.announcements
-            }
-        },
-        ...lesson.slides.map((slide: any, index: number) => ({
-            type: 'quote',
-            number: index + 1,
-            content: slide.content,
-            resources: slide.resources
-        })),
-        {
-            type: 'closing',
-            content: {
-                hymn: lesson.lastHymn,
-                prayer: lesson.lastPrayer
-            }
+    const handleRaiseHand = async () => {
+        if (raisedHand) {
+            await lowerHand();
+        } else {
+            await raiseHand();
         }
-    ];
+    };
+
+    const handleVotePoll = (pollId: string, option: string) => {
+        setSelectedPollOption(option);
+        contextVotePoll(pollId, option);
+    };
+
+    const renderParticipantsList = () => (
+        <Card className="my-4">
+            <CardContent className="p-4">
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-medium">Participantes ({participants.length})</h3>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </div>
+
+                    <div className="divide-y">
+                        {participants.map(participant => (
+                            <div
+                                key={participant.userId}
+                                className="py-2 flex items-center justify-between"
+                            >
+                                <span className="flex items-center gap-2">
+                                    {participant.userName}
+                                    {participant.isGuest && (
+                                        <span className="text-xs text-muted-foreground">(Visitante)</span>
+                                    )}
+                                </span>
+                                {handRaises.find(h => h.userId === participant.userId) && (
+                                    <div className="flex items-center gap-2">
+                                        <Hand className="h-4 w-4 text-primary" />
+                                        {isTeacher && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => giveVoice(participant.userId)}
+                                            >
+                                                Dar a palavra
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
 
     const renderTopBar = () => (
         <div className="bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-4 z-50 rounded-lg border shadow-sm p-4">
@@ -77,14 +124,11 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                 <div className="flex gap-4">
                     <Button
                         variant="outline"
-                        onClick={() => {
-                            setHandRaised(!handRaised);
-                            setHandsRaisedCount(prev => handRaised ? prev - 1 : prev + 1);
-                        }}
-                        className={handRaised ? 'bg-primary/10' : ''}
+                        onClick={handleRaiseHand}
+                        className={raisedHand ? 'bg-primary/10' : ''}
                     >
-                        <Hand className={`h-4 w-4 mr-2 ${handRaised ? 'text-primary' : ''}`} />
-                        {handRaised ? 'Baixar Mão' : 'Levantar Mão'}
+                        <Hand className={`h-4 w-4 mr-2 ${raisedHand ? 'text-primary' : ''}`} />
+                        {raisedHand ? 'Baixar Mão' : 'Levantar Mão'}
                     </Button>
 
                     <Button
@@ -98,105 +142,47 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                         <Heart className={`h-4 w-4 mr-2 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
                         {reactionCount > 0 && reactionCount}
                     </Button>
+
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsSync(!isSync)}
+                        className={isSync ? 'bg-primary/10' : ''}
+                    >
+                        {isSync ? (
+                            <Wifi className="h-4 w-4 mr-2 text-primary" />
+                        ) : (
+                            <WifiOff className="h-4 w-4 mr-2" />
+                        )}
+                        {isSync ? 'Sincronizado' : 'Sincronizar'}
+                    </Button>
                 </div>
 
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Users className="h-4 w-4" />
-                        <span>{participantCount} participantes</span>
+                        <span>{participants.length} participantes</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Hand className="h-4 w-4" />
-                        <span>{handsRaisedCount} mãos levantadas</span>
+                        <span>{handRaises.length} mãos levantadas</span>
                     </div>
                 </div>
             </div>
+
+            {handRaises.length > 0 && (
+                <div className="mt-4 p-4 bg-muted rounded-lg">
+                    <h4 className="font-medium mb-2">Mãos Levantadas:</h4>
+                    <ul className="space-y-2">
+                        {handRaises.map((raise) => (
+                            <li key={raise.userId} className="flex items-center gap-2">
+                                <Hand className="h-4 w-4 text-primary" />
+                                <span>{raise.userName}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
         </div>
-    );
-
-    const renderWelcomeSlide = () => (
-        <motion.div
-            className="space-y-8 p-8"
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={fadeIn}
-        >
-            <motion.div
-                className="text-center space-y-6"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-            >
-                <h1 className="text-4xl font-bold">{slides[0].content.title}</h1>
-
-                <div className="space-y-4">
-                    <div>
-                        <h2 className="text-xl font-medium">Hino de Abertura</h2>
-                        <a
-                            href={slides[0].content.hymn}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center justify-center gap-2"
-                        >
-                            {slides[0].content.hymn}
-                            <ExternalLink className="h-4 w-4" />
-                        </a>
-                    </div>
-
-                    <div>
-                        <h2 className="text-xl font-medium">Primeira Oração</h2>
-                        <p className="text-muted-foreground">{slides[0].content.prayer}</p>
-                    </div>
-
-                    {slides[0].content.announcements && (
-                        <div className="border-t pt-4 mt-4">
-                            <h2 className="text-xl font-medium mb-2">Anúncios</h2>
-                            <p className="text-muted-foreground whitespace-pre-wrap">
-                                {slides[0].content.announcements}
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-
-    const renderClosingSlide = () => (
-        <motion.div
-            className="space-y-8 p-8"
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={fadeIn}
-        >
-            <motion.div
-                className="text-center space-y-6"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-            >
-                <h1 className="text-4xl font-bold">Encerramento</h1>
-
-                <div className="space-y-4">
-                    <div>
-                        <h2 className="text-xl font-medium">Último Hino</h2>
-                        <a
-                            href={slides[slides.length - 1].content.hymn}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center justify-center gap-2"
-                        >
-                            {slides[slides.length - 1].content.hymn}
-                            <ExternalLink className="h-4 w-4" />
-                        </a>
-                    </div>
-
-                    <div>
-                        <h2 className="text-xl font-medium">Última Oração</h2>
-                        <p className="text-muted-foreground">{slides[slides.length - 1].content.prayer}</p>
-                    </div>
-                </div>
-            </motion.div>
-        </motion.div>
     );
 
     const renderResource = (resource: any) => {
@@ -258,6 +244,9 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                 );
 
             case 'poll':
+                const pollVotes = contextPollResults[resource.id] || {};
+                const totalVotes = Object.values(pollVotes).reduce((sum: number, count: number) => sum + count, 0);
+
                 return (
                     <div className="space-y-4">
                         <div className="flex items-center gap-2">
@@ -266,70 +255,138 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                         </div>
 
                         <div className="pl-8 space-y-4">
-                            {(Array.isArray(resource.options) ? resource.options : []).map((option: string, index: number) => (
-                                <Button
-                                    key={index}
-                                    variant="outline"
-                                    className={`w-full justify-start ${selectedPollOption === option ? 'bg-primary/10' : ''
-                                        }`}
-                                    onClick={() => setSelectedPollOption(option)}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-4 h-4 rounded-full border-2 ${selectedPollOption === option
-                                            ? 'border-primary bg-primary'
-                                            : 'border-primary'
-                                            }`} />
-                                        <span>{option}</span>
+                            {(Array.isArray(resource.options) ? resource.options : []).map((option: string) => {
+                                const voteCount = pollVotes[option] || 0;
+                                const percentage = totalVotes ? Math.round((voteCount / totalVotes) * 100) : 0;
+
+                                return (
+                                    <div key={option} className="space-y-2">
+                                        <Button
+                                            variant="outline"
+                                            className={`w-full justify-start ${selectedPollOption === option ? 'bg-primary/10' : ''}`}
+                                            onClick={() => handleVotePoll(resource.id, option)}
+                                            disabled={selectedPollOption !== null}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-4 h-4 rounded-full border-2 ${selectedPollOption === option
+                                                    ? 'border-primary bg-primary'
+                                                    : 'border-primary'
+                                                    }`} />
+                                                <span>{option}</span>
+                                            </div>
+                                        </Button>
+
+                                        {selectedPollOption && (
+                                            <div className="relative h-2 bg-primary/10 rounded-full overflow-hidden">
+                                                <motion.div
+                                                    className="absolute inset-y-0 left-0 bg-primary"
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${percentage}%` }}
+                                                    transition={{ duration: 1, ease: "easeOut" }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {selectedPollOption && (
+                                            <div className="text-sm text-muted-foreground">
+                                                {voteCount} votos ({percentage}%)
+                                            </div>
+                                        )}
                                     </div>
-                                </Button>
-                            ))}
-
-                            {selectedPollOption && (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowPollResults(!showPollResults)}
-                                >
-                                    {showPollResults ? 'Ocultar Resultados' : 'Ver Resultados'}
-                                </Button>
-                            )}
-
-                            <AnimatePresence>
-                                {showPollResults && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="space-y-4"
-                                    >
-                                        {(Array.isArray(resource.options) ? resource.options : []).map((option: string) => {
-                                            const percentage = Math.floor(Math.random() * 100);
-                                            return (
-                                                <div key={option} className="space-y-1">
-                                                    <div className="flex justify-between text-sm">
-                                                        <span>{option}</span>
-                                                        <span>{percentage}%</span>
-                                                    </div>
-                                                    <div className="h-2 bg-primary/10 rounded-full overflow-hidden">
-                                                        <motion.div
-                                                            className="h-full bg-primary"
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: `${percentage}%` }}
-                                                            transition={{ duration: 1, ease: "easeOut" }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                                );
+                            })}
                         </div>
                     </div>
                 );
         }
     };
 
-    const renderQuoteSlide = (slide: any) => (
+    const renderWelcomeSlide = () => (
+        <motion.div
+            className="space-y-8 p-8"
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={fadeIn}
+        >
+            <motion.div
+                className="text-center space-y-6"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+            >
+                <h1 className="text-4xl font-bold">{lesson.title}</h1>
+
+                <div className="space-y-4">
+                    <div>
+                        <h2 className="text-xl font-medium">Hino de Abertura</h2>
+                        <a
+                            href={lesson.firstHymn}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center justify-center gap-2"
+                        >
+                            {lesson.firstHymn}
+                            <ExternalLink className="h-4 w-4" />
+                        </a>
+                    </div>
+
+                    <div>
+                        <h2 className="text-xl font-medium">Primeira Oração</h2>
+                        <p className="text-muted-foreground">{lesson.firstPrayer}</p>
+                    </div>
+
+                    {lesson.announcements && (
+                        <div className="border-t pt-4 mt-4">
+                            <h2 className="text-xl font-medium mb-2">Anúncios</h2>
+                            <p className="text-muted-foreground whitespace-pre-wrap">
+                                {lesson.announcements}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+
+    const renderClosingSlide = () => (
+        <motion.div
+            className="space-y-8 p-8"
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={fadeIn}
+        >
+            <motion.div
+                className="text-center space-y-6"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+            >
+                <h1 className="text-4xl font-bold">Encerramento</h1>
+
+                <div className="space-y-4">
+                    <div>
+                        <h2 className="text-xl font-medium">Último Hino</h2>
+                        <a
+                            href={lesson.lastHymn}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center justify-center gap-2"
+                        >
+                            {lesson.lastHymn}
+                            <ExternalLink className="h-4 w-4" />
+                        </a>
+                    </div>
+
+                    <div>
+                        <h2 className="text-xl font-medium">Última Oração</h2>
+                        <p className="text-muted-foreground">{lesson.lastPrayer}</p>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+
+    const renderQuoteSlide = (slide: Slide) => (
         <motion.div
             className="space-y-8 p-8"
             initial="initial"
@@ -365,7 +422,7 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                 </div>
             </motion.div>
 
-            {slide.resources?.map((resource: any, index: number) => (
+            {slide.resources?.map((resource, index) => (
                 <motion.div
                     key={index}
                     className="pt-8 border-t"
@@ -377,7 +434,7 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                 </motion.div>
             ))}
 
-            {showNoteInput && (
+            {showNoteInput ? (
                 <motion.div
                     className="pt-4"
                     initial={{ y: 20, opacity: 0 }}
@@ -408,9 +465,7 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
                         </div>
                     </div>
                 </motion.div>
-            )}
-
-            {!showNoteInput && (
+            ) : (
                 <motion.div
                     className="pt-4"
                     initial={{ y: 20, opacity: 0 }}
@@ -431,23 +486,21 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
     );
 
     const renderCurrentSlide = () => {
-        const slide = slides[currentSlide];
-
         if (currentSlide === 0) {
             return renderWelcomeSlide();
         }
 
-        if (currentSlide === slides.length - 1) {
+        if (currentSlide === lesson.slides.length + 1) {
             return renderClosingSlide();
         }
 
-        return renderQuoteSlide(slide);
+        return renderQuoteSlide(lesson.slides[currentSlide - 1]);
     };
 
     const renderBottomBar = () => (
         <div className="flex justify-between items-center bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky bottom-4 rounded-lg border shadow-sm p-4">
             <Button
-                onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
+                onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
                 disabled={currentSlide === 0}
                 variant="outline"
             >
@@ -457,18 +510,18 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
 
             <div className="flex flex-col items-center">
                 <span className="text-sm font-medium">
-                    Slide {currentSlide + 1} de {slides.length}
+                    Slide {currentSlide + 1} de {lesson.slides.length + 2}
                 </span>
                 <span className="text-xs text-muted-foreground">
                     {currentSlide === 0 ? 'Boas-vindas' :
-                        currentSlide === slides.length - 1 ? 'Encerramento' :
+                        currentSlide === lesson.slides.length + 1 ? 'Encerramento' :
                             'Citação'}
                 </span>
             </div>
 
             <Button
-                onClick={() => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1))}
-                disabled={currentSlide === slides.length - 1}
+                onClick={() => setCurrentSlide(Math.min(lesson.slides.length + 1, currentSlide + 1))}
+                disabled={currentSlide === lesson.slides.length + 1}
                 variant="outline"
             >
                 Próximo
@@ -481,6 +534,8 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
         <div className="min-h-screen bg-background p-4">
             <div className="max-w-5xl mx-auto space-y-6">
                 {renderTopBar()}
+
+                {renderParticipantsList()}
 
                 <Card className="min-h-[600px] overflow-hidden">
                     <CardContent className="p-0">

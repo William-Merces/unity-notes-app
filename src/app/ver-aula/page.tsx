@@ -1,65 +1,98 @@
+// src/app/ver-aula/page.tsx
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import { RoomDisplay } from '@/components/room/RoomDisplay';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card/card';
+import { LessonProvider } from '@/contexts/LessonContext';
 
 export default function VerAula() {
     const [lesson, setLesson] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const searchParams = useSearchParams();
     const id = searchParams.get('id');
 
     useEffect(() => {
-        if (id) {
-            setLoading(true);
-            fetch(`/api/lessons/${id}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.error) {
-                        setLesson(data);
-                    }
-                })
-                .catch(console.error)
-                .finally(() => setLoading(false));
+        if (!id) {
+            setError('ID da aula não fornecido');
+            setLoading(false);
+            return;
         }
+
+        const fetchLesson = async () => {
+            try {
+                const response = await fetch(`/api/lessons/${id}`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                setLesson(data);
+                setError(null);
+            } catch (err) {
+                console.error('Erro ao carregar aula:', err);
+                setError(err instanceof Error ? err.message : 'Erro ao carregar aula');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchLesson();
     }, [id]);
 
     if (loading) {
         return (
-            <main className="min-h-screen p-4">
-                <div className="w-full max-w-4xl mx-auto">
-                    <Card className="p-8">
-                        <div className="flex items-center justify-center">
-                            <p className="text-lg">Carregando aula...</p>
-                        </div>
-                    </Card>
-                </div>
-            </main>
+            <div className="w-full max-w-4xl mx-auto p-4">
+                <Card className="p-8">
+                    <div className="flex items-center justify-center">
+                        <p className="text-lg">Carregando aula...</p>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="w-full max-w-4xl mx-auto p-4">
+                <Card className="p-8">
+                    <div className="flex items-center justify-center">
+                        <p className="text-lg text-red-500">{error}</p>
+                    </div>
+                </Card>
+            </div>
         );
     }
 
     if (!lesson) {
         return (
-            <main className="min-h-screen p-4">
-                <div className="w-full max-w-4xl mx-auto">
-                    <Card className="p-8">
-                        <div className="flex items-center justify-center">
-                            <p className="text-lg">Aula não encontrada</p>
-                        </div>
-                    </Card>
-                </div>
-            </main>
+            <div className="w-full max-w-4xl mx-auto p-4">
+                <Card className="p-8">
+                    <div className="flex items-center justify-center">
+                        <p className="text-lg">Aula não encontrada</p>
+                    </div>
+                </Card>
+            </div>
         );
     }
 
     return (
-        <main className="min-h-screen p-4">
+        <div className="min-h-screen p-4">
             <div className="w-full max-w-4xl mx-auto">
-                <h1 className="text-2xl font-bold mb-6">Aula Atual</h1>
-                <RoomDisplay lesson={lesson} />
+                <LessonProvider lessonId={lesson.id}>
+                    <RoomDisplay lesson={lesson} />
+                </LessonProvider>
             </div>
-        </main>
+        </div>
     );
 }

@@ -1,3 +1,5 @@
+// src/components/ui/skeleton/skeleton.tsx
+
 import { cn } from "@/lib/utils/utils"
 
 function Skeleton({

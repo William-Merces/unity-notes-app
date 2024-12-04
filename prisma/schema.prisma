@@ -1,135 +1,203 @@
 generator client {
-  provider = "prisma-client-js"
+ provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+ provider = "postgresql"
+ url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  role      String   @default("STUDENT")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+ id              String       @id @default(cuid())
+ name            String
+ email           String       @unique
+ password        String
+ role            String       @default("STUDENT")
+ wardId          String?
+ organization    String?
+ createdAt       DateTime     @default(now())
+ updatedAt       DateTime     @updatedAt
 
-  lessonsCreated    Lesson[]    @relation("TeacherLessons")
-  lessonAttendance  Attendance[]
-  handRaises        HandRaise[]
-  reactions         Reaction[]
-  votes             Vote[]
+ ward             Ward?        @relation(fields: [wardId], references: [id])
+ lessonsCreated   Lesson[]     @relation("TeacherLessons")
+ lessonAttendance Attendance[]
+ handRaises       HandRaise[]
+ reactions        Reaction[]
+ votes            Vote[]
+ enrollments      Enrollment[]
 
-  @@index([email])
+ @@index([email])
+ @@index([wardId])
+}
+
+model Stake {
+ id        String   @id @default(cuid())
+ name      String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ 
+ wards     Ward[]
+}
+
+model Ward {
+ id        String   @id @default(cuid())
+ name      String
+ stakeId   String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ stake     Stake    @relation(fields: [stakeId], references: [id])
+ users     User[]
+ lessons   Lesson[]
+ classes   Class[]
+
+ @@index([stakeId])
+}
+
+model Class {
+ id           String       @id @default(cuid())
+ name         String
+ wardId       String?
+ organization String?
+ createdAt    DateTime     @default(now())
+ updatedAt    DateTime     @updatedAt
+
+ ward         Ward?        @relation(fields: [wardId], references: [id])
+ enrollments  Enrollment[]
+ lessons      Lesson[]
+
+ @@index([wardId])
+}
+
+model Enrollment {
+ id        String   @id @default(cuid())
+ userId    String
+ classId   String
+ status    String   @default("ACTIVE")
+ isGuest   Boolean  @default(false)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ user      User     @relation(fields: [userId], references: [id])
+ class     Class    @relation(fields: [classId], references: [id])
+
+ @@unique([userId, classId])
+ @@index([userId])
+ @@index([classId])
 }
 
 model Lesson {
-  id            String   @id @default(cuid())
-  title         String   @default("Nova Aula")
-  firstHymn     String
-  firstPrayer   String
-  announcements String?
-  lastHymn      String
-  lastPrayer    String
-  discourse     String   // URL do discurso
-  discoursePath String?  // mantido para compatibilidade
-  isActive      Boolean  @default(false)
-  currentSlide  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+ id            String    @id @default(cuid())
+ title         String    @default("Nova Aula")
+ firstHymn     String
+ firstPrayer   String
+ announcements String?
+ lastHymn      String
+ lastPrayer    String
+ discourse     String
+ isActive      Boolean   @default(false)
+ currentSlide  Int       @default(0)
+ wardId        String?
+ classId       String
+ createdAt     DateTime  @default(now())
+ updatedAt     DateTime  @updatedAt
 
-  teacher       User        @relation("TeacherLessons", fields: [teacherId], references: [id])
-  teacherId     String
-  slides        Slide[]
-  attendance    Attendance[]
-  handRaises    HandRaise[]
-  reactions     Reaction[]
+ teacher       User         @relation("TeacherLessons", fields: [teacherId], references: [id])
+ ward          Ward?        @relation(fields: [wardId], references: [id])
+ class         Class        @relation(fields: [classId], references: [id])
+ teacherId     String
+ slides        Slide[]
+ attendance    Attendance[]
+ handRaises    HandRaise[]
+ reactions     Reaction[]
 
-  @@index([teacherId])
+ @@index([teacherId])
+ @@index([wardId])
+ @@index([classId])
 }
 
 model Slide {
-  id        String   @id @default(cuid())
-  order     Int
-  content   String
-  lessonId  String
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  reactions Reaction[]
-  resources Resource[]
+ id        String     @id @default(cuid())
+ order     Int
+ content   String
+ lessonId  String
+ lesson    Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+ reactions Reaction[]
+ resources Resource[]
 
-  @@index([lessonId])
+ @@index([lessonId])
 }
 
 model Resource {
-  id        String   @id @default(cuid())
-  type      String   // QUESTION, SCRIPTURE, POLL
-  content   String?
-  slideId   String
-  slide     Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
-  reference String?  // Para escrituras
-  options   String?    // Para enquetes e sugestões de perguntas
-  votes     Vote[]   // Para enquetes
+ id        String   @id @default(cuid())
+ type      String
+ content   String?
+ slideId   String
+ slide     Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+ reference String?
+ options   String?
+ votes     Vote[]   
 
-  @@index([slideId])
+ @@index([slideId])
 }
 
 model Vote {
-  id         String   @id @default(cuid())
-  resourceId String
-  userId     String
-  option     String
-  timestamp  DateTime @default(now())
+ id         String   @id @default(cuid())
+ resourceId String
+ userId     String
+ option     String
+ timestamp  DateTime @default(now())
 
-  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  user       User    @relation(fields: [userId], references: [id])
+ resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+ user       User     @relation(fields: [userId], references: [id])
 
-  @@unique([resourceId, userId])
-  @@index([resourceId])
-  @@index([userId])
+ @@unique([resourceId, userId])
+ @@index([resourceId])
+ @@index([userId])
 }
 
 model Attendance {
-  id        String   @id @default(cuid())
-  userId    String
-  lessonId  String
-  joinedAt  DateTime @default(now())
-  leftAt    DateTime?
+ id        String    @id @default(cuid())
+ userId    String
+ lessonId  String
+ joinedAt  DateTime  @default(now())
+ leftAt    DateTime?
+ isGuest   Boolean   @default(false)
 
-  user      User     @relation(fields: [userId], references: [id])
-  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+ user      User      @relation(fields: [userId], references: [id])
+ lesson    Lesson    @relation(fields: [lessonId], references: [id])
 
-  @@index([userId])
-  @@index([lessonId])
+ @@index([userId])
+ @@index([lessonId])
 }
 
 model HandRaise {
-  id        String   @id @default(cuid())
-  userId    String
-  lessonId  String
-  timestamp DateTime @default(now())
-  resolved  Boolean  @default(false)
+ id        String   @id @default(cuid())
+ userId    String
+ lessonId  String
+ timestamp DateTime @default(now())
+ resolved  Boolean  @default(false)
 
-  user      User     @relation(fields: [userId], references: [id])
-  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+ user      User     @relation(fields: [userId], references: [id])
+ lesson    Lesson   @relation(fields: [lessonId], references: [id])
 
-  @@index([userId])
-  @@index([lessonId])
+ @@index([userId])
+ @@index([lessonId])
 }
 
 model Reaction {
-  id        String   @id @default(cuid())
-  type      String
-  userId    String
-  lessonId  String
-  slideId   String
-  timestamp DateTime @default(now())
+ id        String   @id @default(cuid())
+ type      String
+ userId    String
+ lessonId  String
+ slideId   String
+ timestamp DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
-  lesson    Lesson   @relation(fields: [lessonId], references: [id])
-  slide     Slide    @relation(fields: [slideId], references: [id])
+ user      User     @relation(fields: [userId], references: [id])
+ lesson    Lesson   @relation(fields: [lessonId], references: [id])
+ slide     Slide    @relation(fields: [slideId], references: [id])
 
-  @@index([userId])
-  @@index([lessonId])
-  @@index([slideId])
+ @@index([userId])
+ @@index([lessonId])
+ @@index([slideId])
 }

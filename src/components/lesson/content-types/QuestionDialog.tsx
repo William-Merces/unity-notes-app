@@ -1,3 +1,5 @@
+// src/components/lesson/content-types/QuestionDialog.tsx
+
 'use client';
 
 import { useState } from 'react';

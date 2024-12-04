@@ -1,3 +1,5 @@
+// src/components/lesson/HymnSelector.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog/dialog';
 import { Button } from '@/components/ui/button/button';

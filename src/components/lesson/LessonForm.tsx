@@ -1,12 +1,15 @@
+// src/components/lesson/LessonForm.tsx
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card/card';
 import { Input } from '@/components/ui/input/input';
 import { Button } from '@/components/ui/button/button';
 import { Textarea } from '@/components/ui/textarea/textarea';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     Loader2,
     ChevronRight,
@@ -35,14 +38,17 @@ interface FormData {
     lastPrayer: string;
     discourse: string;
     title: string;
+    wardId: string;
     speaker: string;
+    classId: string;
     slides: Array<{
         content: string;
         resources: any[];
     }>;
 }
 
-const LessonForm = () => {
+const LessonForm = ({ classId }: { classId: string }) => {
+    const { user } = useAuth();
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
@@ -51,8 +57,6 @@ const LessonForm = () => {
     const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
     const [scriptureDialogOpen, setScriptureDialogOpen] = useState(false);
     const [pollDialogOpen, setPollDialogOpen] = useState(false);
-
-    const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -20 } };
     const [lessonTitle, setLessonTitle] = useState<string>('');
 
     const [formData, setFormData] = useState<FormData>({
@@ -63,7 +67,9 @@ const LessonForm = () => {
         lastPrayer: '',
         discourse: '',
         title: '',
+        wardId: '',
         speaker: '',
+        classId: classId,
         slides: []
     });
 
@@ -71,6 +77,8 @@ const LessonForm = () => {
         confirmed: boolean;
         rejected: boolean;
     }>>({});
+
+    const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -20 } };
 
     const handleHymnChange = (type: 'firstHymn' | 'lastHymn') => (hymn: { url: string }) => {
         setFormData(prev => ({
@@ -90,6 +98,7 @@ const LessonForm = () => {
         setLessonTitle(discourse.title);
         setSlideStatuses({});
     };
+
     const handleGenerateSlides = async () => {
         if (!formData.discourse) {
             setError('Selecione um discurso primeiro');
@@ -185,6 +194,7 @@ const LessonForm = () => {
             )
         }));
     };
+
     const getActiveSlides = () => {
         return formData.slides.filter((_, index) =>
             !slideStatuses[index]?.rejected &&
@@ -198,6 +208,7 @@ const LessonForm = () => {
         if (!formData.lastHymn) return 'Selecione o último hino';
         if (!formData.lastPrayer) return 'Digite o nome de quem fará a última oração';
         if (!formData.discourse) return 'Selecione um discurso';
+        if (!user?.ward?.id) return 'Usuário não está associado a uma ala';
         if (formData.slides.length === 0) return 'Gere o conteúdo do discurso primeiro';
         return null;
     };
@@ -208,35 +219,58 @@ const LessonForm = () => {
             setError(validationError);
             return;
         }
-
+    
         setIsLoading(true);
         setError(null);
-
+    
         try {
             const activeSlides = getActiveSlides();
-
+    
+            // Estrutura os dados conforme esperado pelo backend
             const requestData = {
-                ...formData,
-                slides: activeSlides
+                title: formData.title,
+                firstHymn: formData.firstHymn,
+                firstPrayer: formData.firstPrayer,
+                announcements: formData.announcements || "",
+                lastHymn: formData.lastHymn,
+                lastPrayer: formData.lastPrayer,
+                discourse: formData.discourse,
+                wardId: user?.ward?.id,
+                classId: classId,  // Usando o classId recebido via props
+                slides: activeSlides.map((slide, index) => ({
+                    content: slide.content,
+                    order: index,
+                    resources: Array.isArray(slide.resources) ? slide.resources.map(resource => ({
+                        type: resource.type,
+                        content: resource.content || null,
+                        reference: resource.reference || null,
+                        options: Array.isArray(resource.options) ? resource.options : null
+                    })) : []
+                }))
             };
-
+    
+            // Debug log
+            console.log('Dados enviados:', requestData);
+    
             const response = await fetch('/api/lessons', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                credentials: 'include',
                 body: JSON.stringify(requestData)
             });
-
+    
             if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Erro ao salvar aula');
+                const errorData = await response.json();
+                console.error('Resposta de erro:', errorData);
+                throw new Error(errorData.error || 'Erro ao salvar aula');
             }
-
+    
             const data = await response.json();
             router.push(`/ver-aula?id=${data.id}`);
         } catch (error) {
-            console.error('Erro ao salvar:', error);
+            console.error('Erro detalhado:', error);
             setError(
                 error instanceof Error
                     ? error.message
@@ -246,12 +280,11 @@ const LessonForm = () => {
             setIsLoading(false);
         }
     };
-
     const renderStepOne = () => (
         <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn}>
             <Card>
                 <CardHeader>
-                <CardTitle>{lessonTitle || 'Nova Aula'}</CardTitle>
+                    <CardTitle>{lessonTitle || 'Nova Aula'}</CardTitle>
                     <CardDescription>
                         Vamos começar configurando as informações básicas da aula
                     </CardDescription>
@@ -346,8 +379,8 @@ const LessonForm = () => {
         <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn} className="space-y-6">
             <Card>
                 <CardHeader>
-                <CardTitle>{lessonTitle}</CardTitle>
-                <CardDescription>Sua apresentação está pronta</CardDescription>
+                    <CardTitle>{lessonTitle}</CardTitle>
+                    <CardDescription>Sua apresentação está pronta</CardDescription>
                     <CardDescription>
                         Sua apresentação está pronta! Agora você pode personalizar cada slide:
                         selecione os que deseja manter e adicione recursos como escrituras,

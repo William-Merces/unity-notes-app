@@ -1,29 +1,31 @@
-import './globals.css'
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+// src/app/layout.tsx
 
-const inter = Inter({ 
-  subsets: ['latin'],
-  display: 'swap',
-})
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
+import Header from '@/components/ui/Header';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Unity Notes',
-  description: 'Sistema de anotações para aulas',
-}
+  description: 'Todos na mesma página',
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={inter.className}>
-      <body className="min-h-screen bg-background">
-        <main className="min-h-screen">
+    <html lang="pt-BR">
+      <body className={inter.className}>
+        <AuthProvider>
+          <Header />
           {children}
-        </main>
+        </AuthProvider>
       </body>
     </html>
-  )
+  );
 }

@@ -1,3 +1,5 @@
+// src/components/lesson/content-types/PollDialog.tsx
+
 'use client';
 
 import { useState } from 'react';

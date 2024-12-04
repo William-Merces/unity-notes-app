@@ -1,3 +1,5 @@
+// src/components/lesson/DiscourseSelector.tsx
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog/dialog';
 import { Button } from '@/components/ui/button/button';
