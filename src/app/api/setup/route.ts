@@ -2,6 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 
 export async function GET() {
     try {
@@ -19,11 +20,16 @@ export async function GET() {
             });
         }
 
+        // Criar uma senha padrão e criptografá-la
+        const password = "123456"; // senha padrão para teste
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         // Se não existe, vamos criar
         const user = await prisma.user.create({
             data: {
                 name: "Professor Teste",
                 email: "professor@teste.com",
+                password: hashedPassword, // Adicionando o campo password
                 role: "TEACHER"
             }
         });
