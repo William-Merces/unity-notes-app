@@ -16,4 +16,5 @@ export interface User {
     email: string;
     ward?: Ward;
     organization?: string;
+    role: string;
 }

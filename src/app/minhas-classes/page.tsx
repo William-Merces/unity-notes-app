@@ -1,5 +1,3 @@
-// src/app/minhas-classes/page.tsx
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,11 +10,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs/t
 import { Search, Plus, Users } from 'lucide-react';
 import ClassList from '@/components/class/ClassList';
 
+type UserRole = 'ADMIN' | 'TEACHER' | 'STUDENT';
+
+interface ExtendedUser {
+    id: string;
+    name: string;
+    email: string;
+    role?: UserRole;
+    ward?: {
+        id: string;
+        name: string;
+        stake?: {
+            id: string;
+            name: string;
+        }
+    };
+    organization?: string;
+}
+
 export default function MinhasClasses() {
-    const { user, loading } = useAuth();
+    const { user, loading } = useAuth() as { user: ExtendedUser | null, loading: boolean };
     const [searchTerm, setSearchTerm] = useState('');
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState('enrolled');
 
     useEffect(() => {
         if (!user && !loading) {
@@ -25,12 +40,20 @@ export default function MinhasClasses() {
     }, [user, loading, router]);
 
     if (loading) {
-        return <div>Carregando...</div>;
+        return (
+            <div className="min-h-screen p-4">
+                <div className="w-full max-w-4xl mx-auto">
+                    <Card className="p-8">
+                        <div className="flex items-center justify-center">
+                            <p className="text-lg">Carregando...</p>
+                        </div>
+                    </Card>
+                </div>
+            </div>
+        );
     }
 
-    if (!user) {
-        return null;
-    }
+    if (!user) return null;
 
     return (
         <main className="min-h-screen p-4">
@@ -38,7 +61,7 @@ export default function MinhasClasses() {
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">Classes</h1>
                     {user?.role === 'ADMIN' && (
-                        <Button>
+                        <Button onClick={() => router.push('/criar-classe')}>
                             <Plus className="h-4 w-4 mr-2" />
                             Nova Classe
                         </Button>
