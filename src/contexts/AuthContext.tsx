@@ -8,6 +8,7 @@ interface User {
     id: string;
     name: string;
     email: string;
+    role: string;
     ward?: {
         id: string;
         name: string;

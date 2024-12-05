@@ -1,5 +1,3 @@
-// src/components/lesson/LessonForm.tsx
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -219,13 +217,13 @@ const LessonForm = ({ classId }: { classId: string }) => {
             setError(validationError);
             return;
         }
-    
+
         setIsLoading(true);
         setError(null);
-    
+
         try {
             const activeSlides = getActiveSlides();
-    
+
             // Estrutura os dados conforme esperado pelo backend
             const requestData = {
                 title: formData.title,
@@ -248,10 +246,10 @@ const LessonForm = ({ classId }: { classId: string }) => {
                     })) : []
                 }))
             };
-    
+
             // Debug log
             console.log('Dados enviados:', requestData);
-    
+
             const response = await fetch('/api/lessons', {
                 method: 'POST',
                 headers: {
@@ -260,13 +258,13 @@ const LessonForm = ({ classId }: { classId: string }) => {
                 credentials: 'include',
                 body: JSON.stringify(requestData)
             });
-    
+
             if (!response.ok) {
                 const errorData = await response.json();
                 console.error('Resposta de erro:', errorData);
                 throw new Error(errorData.error || 'Erro ao salvar aula');
             }
-    
+
             const data = await response.json();
             router.push(`/ver-aula?id=${data.id}`);
         } catch (error) {
@@ -280,6 +278,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
             setIsLoading(false);
         }
     };
+
     const renderStepOne = () => (
         <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn}>
             <Card>

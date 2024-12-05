@@ -43,26 +43,3 @@ export async function GET(req: Request, { params }: RouteParams) {
         );
     }
 }
-
-export async function PATCH(req: Request, { params }: RouteParams) {
-    try {
-        const body = await req.json();
-        const lesson = await prisma.lesson.update({
-            where: {
-                id: params.id
-            },
-            data: {
-                isActive: body.isActive,
-                currentSlide: body.currentSlide
-            }
-        });
-
-        return NextResponse.json(lesson);
-    } catch (error) {
-        console.error('Erro ao atualizar aula:', error);
-        return NextResponse.json(
-            { error: 'Erro ao atualizar aula' },
-            { status: 500 }
-        );
-    }
-}

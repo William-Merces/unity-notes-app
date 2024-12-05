@@ -16,6 +16,7 @@ export default function VerAula() {
     const id = searchParams.get('id');
 
     useEffect(() => {
+        console.log('ID da aula:', id);
         if (!id) {
             setError('ID da aula não fornecido');
             setLoading(false);
@@ -27,12 +28,13 @@ export default function VerAula() {
                 const response = await fetch(`/api/lessons/${id}`, {
                     credentials: 'include'
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(await response.text());
                 }
 
                 const data = await response.json();
+                console.log('Dados da aula:', data);
                 if (data.error) {
                     throw new Error(data.error);
                 }
