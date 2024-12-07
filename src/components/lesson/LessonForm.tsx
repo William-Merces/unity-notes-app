@@ -379,9 +379,9 @@ const LessonForm = ({ classId }: { classId: string }) => {
             <Card>
                 <CardHeader>
                     <CardTitle>{lessonTitle}</CardTitle>
-                    <CardDescription>Sua apresentação está pronta</CardDescription>
+                    <CardDescription>Sua apresentação está pronta!</CardDescription>
                     <CardDescription>
-                        Sua apresentação está pronta! Agora você pode personalizar cada slide:
+                        Agora você pode personalizar cada slide:
                         selecione os que deseja manter e adicione recursos como escrituras,
                         perguntas e enquetes para tornar sua aula mais interativa.
                     </CardDescription>

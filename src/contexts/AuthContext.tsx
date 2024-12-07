@@ -1,4 +1,5 @@
-// src/contexts/AuthContext.tsx
+//src/contexts/AuthContext.tsx
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -8,7 +9,6 @@ interface User {
     id: string;
     name: string;
     email: string;
-    role: string;
     ward?: {
         id: string;
         name: string;
@@ -18,6 +18,7 @@ interface User {
         }
     };
     organization?: string;
+    role: string;
 }
 
 interface AuthContextType {
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const response = await fetch('/api/auth/me', {
                 credentials: 'include'
             });
-            
+
             console.log('Auth check response status:', response.status);
 
             if (response.ok) {
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         console.log('Login response status:', response.status);
-        
+
         if (!response.ok) {
             const error = await response.json();
             console.error('Login error:', error);

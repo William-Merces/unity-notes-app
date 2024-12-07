@@ -4,11 +4,13 @@ export interface Ward {
     id: string;
     name: string;
     stake?: Stake;
+    classes?: Class[];
 }
 
 export interface Stake {
     id: string;
     name: string;
+    wards: Ward[];
 }
 
 export interface Resource {

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { FaEye, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function Lessons() {
     const [lessons, setLessons] = useState<{ id: string; title: string; ward: { name: string } }[]>([]);
@@ -43,6 +44,24 @@ export default function Lessons() {
         fetchLessons();
     }, []);
 
+    const handleDeleteLesson = async (lessonId: string) => {
+        try {
+            const response = await fetch(`/api/lessons/${lessonId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            setLessons(lessons.filter(lesson => lesson.id !== lessonId));
+        } catch (err) {
+            console.error('Erro ao excluir aula:', err);
+            setError(err instanceof Error ? err.message : 'Erro ao excluir aula');
+        }
+    };
+
     if (loading) {
         return (
             <div className="w-full max-w-4xl mx-auto p-4">
@@ -68,36 +87,36 @@ export default function Lessons() {
     }
 
     return (
-        <div className="w-full max-w-4xl mx-auto p-4">
+        <div className="w-full max-w-4xl mx-auto p-4 bg-gray-100">
             {lessons.map(lesson => (
                 <Card key={lesson.id} className="p-8 mb-4">
-                    <div className="flex items-center justify-between">
+                    <div>
                         <div>
                             <h2 className="text-xl font-bold">{lesson.title}</h2>
                             <p className="text-gray-600">{lesson.ward.name}</p>
                         </div>
+                        <div className="mt-4">
+                        </div>
                         <div className="flex space-x-2">
                             <button
                                 onClick={() => router.push(`/ver-aula?id=${lesson.id}`)}
-                                className="bg-blue-500 text-white px-4 py-2 rounded"
+                                className="bg-blue-800 text-white px-4 py-2 rounded flex items-center hover:bg-blue-700"
                             >
-                                Ver Aula
+                                <FaEye className="mr-2" /> Ver Aula
                             </button>
-                            {user?.role === 'professor' && (
+                            {user?.role === 'TEACHER' && (
                                 <>
                                     <button
                                         onClick={() => router.push(`/editar-aula?id=${lesson.id}`)}
-                                        className="bg-yellow-500 text-white px-4 py-2 rounded"
+                                        className="bg-yellow-800 text-white px-4 py-2 rounded flex items-center hover:bg-yellow-700"
                                     >
-                                        Editar
+                                        <FaEdit className="mr-2" /> Editar
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            // Implementar lógica de exclusão
-                                        }}
-                                        className="bg-red-500 text-white px-4 py-2 rounded"
+                                        onClick={() => handleDeleteLesson(lesson.id)}
+                                        className="bg-red-700 text-white px-4 py-2 rounded flex items-center hover:bg-red-600"
                                     >
-                                        Excluir
+                                        <FaTrash className="mr-2" /> Excluir
                                     </button>
                                 </>
                             )}

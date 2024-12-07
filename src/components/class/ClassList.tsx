@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog/dialog';
 import { Input } from '@/components/ui/input/input';
 import { useAuth } from '@/contexts/AuthContext';
+import { Class, Stake, Ward } from '@/types/lesson';
 import { Users, ChevronDown, ChevronRight, Plus, Book, PenSquare, Home, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -111,7 +112,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
     const renderClassActions = (classItem: Class, ward: Ward) => {
         const enrolled = isEnrolled(classItem.id);
         const canCreateLesson = user?.role === 'TEACHER' || user?.role === 'ADMIN';
-        const belongsToWard = user?.wardId === ward.id;
+        const belongsToWard = user?.ward?.id === ward.id;
 
         return (
             <div className="flex gap-2">
@@ -213,7 +214,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                     {expandedStakes[stake.id] && (
                         <CardContent className="pl-6">
                             <div className="space-y-4">
-                                {stake.wards.map(ward => (
+                                {stake.wards.map((ward: Ward) => (
                                     <Card key={ward.id}>
                                         <CardHeader>
                                             <div className="flex items-center justify-between">
@@ -229,7 +230,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                                         <CardTitle className="text-lg">{ward.name}</CardTitle>
                                                     </div>
                                                 </div>
-                                                {!user?.wardId && (
+                                                {!user?.ward?.id && (
                                                     <Button 
                                                         variant="outline"
                                                         onClick={() => handleJoinWard(ward.id)}
@@ -245,7 +246,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                         {expandedWards[ward.id] && (
                                             <CardContent>
                                                 <div className="space-y-2">
-                                                    {ward.classes.map(classItem => (
+                                                    {ward.classes?.map((classItem: Class) => (
                                                         <div 
                                                             key={classItem.id}
                                                             className="flex items-center justify-between p-4 rounded-lg border"
