@@ -1,3 +1,5 @@
+// src/app/editar-aula/page.tsx
+
 'use client';
 
 import { useEffect, useState } from 'react';
