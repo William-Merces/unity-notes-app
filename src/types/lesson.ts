@@ -13,6 +13,17 @@ export interface Stake {
     wards: Ward[];
 }
 
+export interface Class {
+    id: string;
+    name: string;
+    ward: Ward;
+    nextDate?: Date;
+    _count?: {
+        enrollments: number;
+    };
+    organization?: string;
+}
+
 export interface Resource {
     id: string;
     type: 'question' | 'scripture' | 'poll';
@@ -50,15 +61,6 @@ export interface Participant {
     userName: string;
     isGuest: boolean;
     joinedAt: Date;
-}
-
-export interface Class {
-    id: string;
-    name: string;
-    ward: Ward;
-    _count?: {
-        enrollments: number;
-    };
 }
 
 export interface Lesson {

@@ -1,5 +1,3 @@
-// src/lib/socket.ts
-
 import { Server } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import type { NextApiResponse } from 'next';
@@ -12,6 +10,8 @@ export const initSocketServer = (server: HTTPServer) => {
         addTrailingSlash: false,
     });
 
+    let connectedUsers = 0;
+
     io.on('connection', async (socket) => {
         const token = socket.handshake.auth.token;
         const user = await verifyToken(token);
@@ -20,6 +20,9 @@ export const initSocketServer = (server: HTTPServer) => {
             socket.disconnect();
             return;
         }
+
+        connectedUsers++;
+        io.emit('connected-users', connectedUsers);
 
         socket.on('join-lesson', async (lessonId) => {
             socket.join(`lesson:${lessonId}`);
@@ -99,6 +102,9 @@ export const initSocketServer = (server: HTTPServer) => {
                     data: { leftAt: new Date() }
                 });
             }
+
+            connectedUsers--;
+            io.emit('connected-users', connectedUsers);
         });
     });
 

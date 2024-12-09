@@ -1,5 +1,3 @@
-// src/components/class/ClassList.tsx
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,9 +7,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Class, Stake, Ward } from '@/types/lesson';
-import { Users, ChevronDown, ChevronRight, Plus, Book, PenSquare, Home, Eye } from 'lucide-react';
+import { Users, ChevronDown, ChevronRight, Plus, Book, PenSquare, Home, Eye, Calendar, Check, Circle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+
 
 interface Props {
     mode: 'enrolled' | 'available';
@@ -25,6 +25,14 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
     const [enrolledClasses, setEnrolledClasses] = useState<Class[]>([]);
     const [expandedStakes, setExpandedStakes] = useState<Record<string, boolean>>({});
     const [expandedWards, setExpandedWards] = useState<Record<string, boolean>>({});
+    const [nextSunday, setNextSunday] = useState<Date>(getNextSunday());
+    const [enrollmentStatus, setEnrollmentStatus] = useState<Record<string, 'none' | 'pending' | 'enrolled'>>({});
+
+    function getNextSunday(from: Date = new Date()): Date {
+        const date = new Date(from);
+        date.setDate(date.getDate() + (7 - date.getDay()));
+        return date;
+    }
 
     useEffect(() => {
         if (mode === 'enrolled') {
@@ -42,6 +50,13 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
             if (response.ok) {
                 const data = await response.json();
                 setEnrolledClasses(data);
+                
+                // Atualiza status de matrícula
+                const status: Record<string, 'none' | 'pending' | 'enrolled'> = {};
+                data.forEach((c: Class) => {
+                    status[c.id] = 'enrolled';
+                });
+                setEnrollmentStatus(status);
             }
         } catch (error) {
             console.error('Erro ao carregar classes matriculadas:', error);
@@ -65,12 +80,10 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
         }
     };
 
-    const isEnrolled = (classId: string) => {
-        return enrolledClasses.some(c => c.id === classId);
-    };
-
     const handleEnroll = async (classId: string) => {
         try {
+            setEnrollmentStatus(prev => ({ ...prev, [classId]: 'pending' }));
+            
             const response = await fetch('/api/classes/enroll', {
                 method: 'POST',
                 headers: { 
@@ -81,11 +94,13 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
             });
 
             if (response.ok) {
+                setEnrollmentStatus(prev => ({ ...prev, [classId]: 'enrolled' }));
                 await fetchEnrolledClasses();
                 await fetchStakes();
             }
         } catch (error) {
             console.error('Erro ao matricular:', error);
+            setEnrollmentStatus(prev => ({ ...prev, [classId]: 'none' }));
         }
     };
 
@@ -109,30 +124,62 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
         }
     };
 
-    const renderClassActions = (classItem: Class, ward: Ward) => {
-        const enrolled = isEnrolled(classItem.id);
-        const canCreateLesson = user?.role === 'TEACHER' || user?.role === 'ADMIN';
-        const belongsToWard = user?.ward?.id === ward.id;
+    const getNextClassDate = (classItem: Class): Date => {
+        // Se a classe já tem uma data definida, use-a
+        if (classItem.nextDate) {
+            return new Date(classItem.nextDate);
+        }
+        
+        // Caso contrário, retorne o próximo domingo
+        return nextSunday;
+    };
 
-        return (
-            <div className="flex gap-2">
-                {enrolled && (
-                    <Link href={`/ver-aula?classId=${classItem.id}`}>
-                        <Button variant="outline">
-                            <Eye className="h-4 w-4 mr-2" />
-                            Ver Aula
+    const formatDate = (date: Date): string => {
+        return new Intl.DateTimeFormat('pt-BR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long'
+        }).format(date);
+    };
+
+    const renderEnrollButton = (classItem: Class) => {
+        const status = enrollmentStatus[classItem.id] || 'none';
+        
+        switch (status) {
+            case 'enrolled':
+                return (
+                    <motion.div
+                        initial={{ scale: 0.95 }}
+                        animate={{ scale: 1 }}
+                        className="flex items-center gap-2"
+                    >
+                        <Button variant="ghost" className="text-green-600">
+                            <Check className="h-4 w-4 mr-2" />
+                            Matriculado
                         </Button>
-                    </Link>
-                )}
-                {belongsToWard && canCreateLesson && (
-                    <Link href={`/criar-aula?classId=${classItem.id}`}>
-                        <Button variant="outline">
-                            <Book className="h-4 w-4 mr-2" />
-                            Nova Aula
-                        </Button>
-                    </Link>
-                )}
-                {!enrolled && (
+                        <Link href={`/ver-aula?classId=${classItem.id}`}>
+                            <Button variant="default">
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Aula
+                            </Button>
+                        </Link>
+                    </motion.div>
+                );
+            case 'pending':
+                return (
+                    <Button disabled>
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="mr-2"
+                        >
+                            <Circle className="h-4 w-4" />
+                        </motion.div>
+                        Matriculando...
+                    </Button>
+                );
+            default:
+                return (
                     <Button 
                         onClick={() => handleEnroll(classItem.id)}
                         variant="default"
@@ -140,137 +187,207 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                         <PenSquare className="h-4 w-4 mr-2" />
                         Matricular-se
                     </Button>
-                )}
+                );
+        }
+    };
+
+    const renderClassActions = (classItem: Class, ward: Ward) => {
+        const belongsToWard = user?.ward?.id === ward.id;
+        const canCreateLesson = user?.role === 'TEACHER' || user?.role === 'ADMIN';
+        const nextDate = getNextClassDate(classItem);
+
+        return (
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>Próxima aula: {formatDate(nextDate)}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                            {classItem._count?.enrollments || 0} alunos
+                        </span>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        {renderEnrollButton(classItem)}
+                        
+                        {belongsToWard && canCreateLesson && (
+                            <Link href={`/criar-aula?classId=${classItem.id}`}>
+                                <Button variant="outline">
+                                    <Book className="h-4 w-4 mr-2" />
+                                    Nova Aula
+                                </Button>
+                            </Link>
+                        )}
+                    </div>
+                </div>
             </div>
         );
     };
 
-    // Renderiza a lista de classes matriculadas
     if (mode === 'enrolled') {
         return (
             <div className="space-y-4">
                 {enrolledClasses.length === 0 ? (
                     <Card>
-                        <CardContent className="p-6 text-center text-muted-foreground">
-                            Você ainda não está matriculado em nenhuma classe
+                        <CardContent className="p-6">
+                            <div className="text-center space-y-4">
+                                <p className="text-muted-foreground">
+                                    Você ainda não está matriculado em nenhuma classe
+                                </p>
+                                <Link href="/lessons">
+                                    <Button>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Explorar Classes
+                                    </Button>
+                                </Link>
+                            </div>
                         </CardContent>
                     </Card>
                 ) : (
-                    enrolledClasses.map(classItem => (
-                        <Card key={classItem.id}>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>{classItem.name}</CardTitle>
-                                        <p className="text-sm text-muted-foreground">
-                                            {classItem.ward?.name}
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Link href={`/ver-aula?classId=${classItem.id}`}>
-                                            <Button variant="outline">
-                                                <Eye className="h-4 w-4 mr-2" />
-                                                Ver Aula
-                                            </Button>
-                                        </Link>
-                                        {(user?.role === 'TEACHER' || user?.role === 'ADMIN') && (
-                                            <Link href={`/criar-aula?classId=${classItem.id}`}>
-                                                <Button variant="outline">
-                                                    <Book className="h-4 w-4 mr-2" />
-                                                    Nova Aula
-                                                </Button>
-                                            </Link>
-                                        )}
-                                    </div>
-                                </div>
-                            </CardHeader>
-                        </Card>
-                    ))
+                    <AnimatePresence>
+                        {enrolledClasses.map((classItem, index) => (
+                            <motion.div
+                                key={classItem.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                transition={{ delay: index * 0.1 }}
+                            >
+                                <Card>
+                                    <CardHeader>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <CardTitle>{classItem.name}</CardTitle>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {classItem.ward?.name}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {renderClassActions(classItem, classItem.ward)}
+                                        </div>
+                                    </CardHeader>
+                                </Card>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
                 )}
             </div>
         );
     }
 
-    // Renderiza a lista de classes disponíveis
     return (
         <div className="space-y-4">
-            {stakes.map(stake => (
-                <Card key={stake.id}>
-                    <CardHeader 
-                        className="cursor-pointer hover:bg-accent/50"
-                        onClick={() => setExpandedStakes(prev => ({ ...prev, [stake.id]: !prev[stake.id] }))}
+            <AnimatePresence>
+                {stakes.map((stake, index) => (
+                    <motion.div
+                        key={stake.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ delay: index * 0.1 }}
                     >
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                {expandedStakes[stake.id] ? 
-                                    <ChevronDown className="h-4 w-4" /> : 
-                                    <ChevronRight className="h-4 w-4" />
-                                }
-                                <CardTitle>{stake.name}</CardTitle>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    
-                    {expandedStakes[stake.id] && (
-                        <CardContent className="pl-6">
-                            <div className="space-y-4">
-                                {stake.wards.map((ward: Ward) => (
-                                    <Card key={ward.id}>
-                                        <CardHeader>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <div 
-                                                        className="cursor-pointer flex items-center gap-2"
-                                                        onClick={() => setExpandedWards(prev => ({ ...prev, [ward.id]: !prev[ward.id] }))}
-                                                    >
-                                                        {expandedWards[ward.id] ? 
-                                                            <ChevronDown className="h-4 w-4" /> : 
-                                                            <ChevronRight className="h-4 w-4" />
-                                                        }
-                                                        <CardTitle className="text-lg">{ward.name}</CardTitle>
-                                                    </div>
-                                                </div>
-                                                {!user?.ward?.id && (
-                                                    <Button 
-                                                        variant="outline"
-                                                        onClick={() => handleJoinWard(ward.id)}
-                                                        className="ml-4"
-                                                    >
-                                                        <Home className="h-4 w-4 mr-2" />
-                                                        Juntar-se a esta Ala
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </CardHeader>
-
-                                        {expandedWards[ward.id] && (
-                                            <CardContent>
-                                                <div className="space-y-2">
-                                                    {ward.classes?.map((classItem: Class) => (
-                                                        <div 
-                                                            key={classItem.id}
-                                                            className="flex items-center justify-between p-4 rounded-lg border"
-                                                        >
-                                                            <div>
-                                                                <h3 className="font-medium">{classItem.name}</h3>
-                                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <Users className="h-4 w-4" />
-                                                                    <span>{classItem._count?.enrollments || 0} alunos</span>
+                        <Card>
+                            <CardHeader 
+                                className="cursor-pointer hover:bg-accent/50"
+                                onClick={() => setExpandedStakes(prev => ({ ...prev, [stake.id]: !prev[stake.id] }))}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        {expandedStakes[stake.id] ? 
+                                            <ChevronDown className="h-4 w-4" /> : 
+                                            <ChevronRight className="h-4 w-4" />
+                                        }
+                                        <CardTitle>{stake.name}</CardTitle>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            
+                            <AnimatePresence>
+                                {expandedStakes[stake.id] && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                    >
+                                        <CardContent className="pl-6">
+                                            <div className="space-y-4">
+                                                {stake.wards.map((ward: Ward) => (
+                                                    <Card key={ward.id}>
+                                                        <CardHeader>
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div 
+                                                                        className="cursor-pointer flex items-center gap-2"
+                                                                        onClick={() => setExpandedWards(prev => ({ 
+                                                                            ...prev, 
+                                                                            [ward.id]: !prev[ward.id] 
+                                                                        }))}
+                                                                    >
+                                                                        {expandedWards[ward.id] ? 
+                                                                            <ChevronDown className="h-4 w-4" /> : 
+                                                                            <ChevronRight className="h-4 w-4" />
+                                                                        }
+                                                                        <CardTitle className="text-lg">{ward.name}</CardTitle>
+                                                                    </div>
                                                                 </div>
+                                                                {!user?.ward?.id && (
+                                                                    <Button 
+                                                                        variant="outline"
+                                                                        onClick={() => handleJoinWard(ward.id)}
+                                                                        className="ml-4"
+                                                                    >
+                                                                        <Home className="h-4 w-4 mr-2" />
+                                                                        Juntar-se a esta Ala
+                                                                    </Button>
+                                                                )}
                                                             </div>
-                                                            {renderClassActions(classItem, ward)}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </CardContent>
-                                        )}
-                                    </Card>
-                                ))}
-                            </div>
-                        </CardContent>
-                    )}
-                </Card>
-            ))}
+                                                        </CardHeader>
+
+                                                        <AnimatePresence>
+                                                            {expandedWards[ward.id] && (
+                                                                <motion.div
+                                                                    initial={{ height: 0, opacity: 0 }}
+                                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                                    exit={{ height: 0, opacity: 0 }}
+                                                                >
+                                                                    <CardContent>
+                                                                        <div className="space-y-4">
+                                                                            {ward.classes?.map((classItem: Class) => (
+                                                                                <motion.div 
+                                                                                    key={classItem.id}
+                                                                                    className="p-4 rounded-lg border"
+                                                                                    whileHover={{ scale: 1.01 }}
+                                                                                    transition={{ duration: 0.2 }}
+                                                                                >
+                                                                                    <div className="space-y-4">
+                                                                                        <h3 className="font-medium text-lg">
+                                                                                        {classItem.name}
+                                                                                        </h3>
+                                                                                        {renderClassActions(classItem, ward)}
+                                                                                    </div>
+                                                                                </motion.div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </CardContent>
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </CardContent>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </Card>
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </div>
     );
 };

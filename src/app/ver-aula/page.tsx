@@ -2,160 +2,195 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card } from '@/components/ui/card/card';
 import { useAuth } from '@/contexts/AuthContext';
-import HymnSelector from '@/components/lesson/HymnSelector';
-import DiscourseSelector from '@/components/lesson/DiscourseSelector';
-import { QuestionDialog } from '@/components/lesson/content-types/QuestionDialog';
-import { ScriptureDialog } from '@/components/lesson/content-types/ScriptureDialog';
-import { PollDialog } from '@/components/lesson/content-types/PollDialog';
-import { Textarea } from '@/components/ui/textarea/textarea';
-import { Button } from '@/components/ui/button/button';
-import { ChevronUp, ChevronDown, PlusCircle, Trash } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { LessonProvider } from '@/contexts/LessonContext';
+import { io } from 'socket.io-client';
+import { RoomDisplay } from '@/components/room/RoomDisplay';
+import { Card } from '@/components/ui/card/card';
+import { Lesson } from '@/types/lesson';
 
-export default function EditarAula() {
-    interface Lesson {
-        title: string;
-        firstHymn: string;
-        announcements: string;
-        discourse: string;
-        slides: { content: string; resources: any[] }[];
-    }
-
+export default function VerAula() {
     const [lesson, setLesson] = useState<Lesson | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [connectedUsers, setConnectedUsers] = useState(0);
+    const [handRaises, setHandRaises] = useState<any[]>([]);
+    const [isSync, setIsSync] = useState(true);
     const [currentSlide, setCurrentSlide] = useState(0);
     const router = useRouter();
     const searchParams = useSearchParams();
     const lessonId = searchParams.get('id');
     const { user } = useAuth();
 
-    const fetchLesson = async () => {
-        try {
-            const response = await fetch(`/api/lessons/${lessonId}`);
-            if (!response.ok) throw new Error(await response.text());
-            const data = await response.json();
-            setLesson(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        } finally {
-            setLoading(false);
+    const socket = io('/api/socketio', {
+        auth: {
+            token: user?.id
+        }
+    });
+
+    useEffect(() => {
+        const fetchLesson = async () => {
+            try {
+                const response = await fetch(`/api/lessons/${lessonId}`);
+                if (!response.ok) throw new Error(await response.text());
+                const data = await response.json();
+                
+                const transformedLesson: Lesson = {
+                    ...data,
+                    currentSlide: data.currentSlide ?? 0,
+                    wardId: data.wardId ?? '',
+                    teacherId: data.teacherId ?? '',
+                    createdAt: data.createdAt ?? new Date().toISOString(),
+                    updatedAt: data.updatedAt ?? new Date().toISOString(),
+                    firstPrayer: data.firstPrayer ?? '',
+                    lastPrayer: data.lastPrayer ?? '',
+                    isActive: data.isActive ?? true,
+                    slides: data.slides.map((slide: any) => ({
+                        title: slide.title || "Slide",
+                        content: slide.content || "",
+                        type: determineSlideType(slide),
+                        resources: slide.resources || [],
+                        ...getAdditionalSlideProperties(slide)
+                    }))
+                };
+                
+                setLesson(transformedLesson);
+                setCurrentSlide(transformedLesson.currentSlide);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'An unknown error occurred');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (lessonId) fetchLesson();
+
+        socket.on('connect', () => {
+            socket.emit('join-lesson', lessonId);
+        });
+
+        socket.on('connected-users', (count) => {
+            setConnectedUsers(count);
+        });
+
+        socket.on('hand-raised', (data) => {
+            setHandRaises(prev => [...prev, data]);
+        });
+
+        socket.on('hand-lowered', (userId) => {
+            setHandRaises(prev => prev.filter(hand => hand.userId !== userId));
+        });
+
+        socket.on('slide-changed', ({ slideIndex }) => {
+            if (isSync) {
+                setCurrentSlide(slideIndex);
+            }
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [lessonId, isSync]);
+
+    const determineSlideType = (slide: any) => {
+        if (slide.resources?.some((r: any) => r.type === 'question')) return 'question';
+        if (slide.resources?.some((r: any) => r.type === 'scripture')) return 'scripture';
+        if (slide.resources?.some((r: any) => r.type === 'poll')) return 'poll';
+        return 'text';
+    };
+
+    const getAdditionalSlideProperties = (slide: any) => {
+        const resource = slide.resources?.[0];
+        if (!resource) return {};
+
+        switch (resource.type) {
+            case 'question':
+                return {
+                    suggestions: resource.suggestions || []
+                };
+            case 'scripture':
+                return {
+                    reference: resource.reference || ''
+                };
+            case 'poll':
+                return {
+                    question: resource.question || '',
+                    options: resource.options || []
+                };
+            default:
+                return {};
         }
     };
 
-    useEffect(() => {
-        if (lessonId) fetchLesson();
-    }, [lessonId, fetchLesson]); // Adicione fetchLesson aqui
-
-    const handleResourceSave = (resource: any, type: string) => {
-        setLesson(prev =>
-            prev
-                ? {
-                    ...prev,
-                    slides: prev.slides.map((slide, index) =>
-                        index === currentSlide
-                            ? { ...slide, resources: [...slide.resources, { type, ...resource }] }
-                            : slide
-                    ),
-                }
-                : prev
-        );
+    const handleSlideChange = (slideIndex: number) => {
+        setCurrentSlide(slideIndex);
+        socket.emit('slide-change', { lessonId, slideIndex });
     };
 
-    return (
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
-            {loading ? (
-                <Card className="flex justify-center p-8 text-lg font-medium">Carregando...</Card>
-            ) : error ? (
-                <Card className="flex justify-center p-8 text-red-500 text-lg">{error}</Card>
-            ) : (
-                <Card className="p-6 space-y-8 shadow-md rounded-lg bg-gray-50">
-                    <h2 className="text-2xl font-semibold text-center text-gray-800">Editar Aula</h2>
-                    <form className="space-y-8">
-                        {/* Detalhes Básicos */}
-                        <section className="space-y-4">
-                            <h3 className="text-xl font-semibold text-gray-700">Detalhes Básicos</h3>
-                            <input
-                                type="text"
-                                placeholder="Título da aula"
-                                defaultValue={lesson?.title || ''}
-                                className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-300"
-                            />
-                            {lesson && (
-                                <HymnSelector value={lesson.firstHymn} onChange={() => { }} />
-                            )}
-                        </section>
+    const handleRaiseHand = () => {
+        socket.emit('raise-hand', lessonId);
+    };
 
-                        {/* Anúncios */}
-                        <section className="space-y-4">
-                            <h3 className="text-xl font-semibold text-gray-700">Anúncios</h3>
-                            <Textarea
-                                defaultValue={lesson?.announcements || ''}
-                                placeholder="Insira os anúncios importantes"
-                                className="w-full resize-none"
-                            />
-                        </section>
+    const handleLowerHand = () => {
+        socket.emit('lower-hand', lessonId);
+    };
 
-                        {/* Discurso */}
-                        <section className="space-y-4">
-                            <h3 className="text-xl font-semibold text-gray-700">Discurso</h3>
-                            {lesson && (
-                                <DiscourseSelector value={lesson.discourse} onChange={() => { }} />
-                            )}
-                        </section>
+    const handleSync = () => {
+        setIsSync(!isSync);
+    };
 
-                        {/* Slides */}
-                        <section className="space-y-6">
-                            <h3 className="text-xl font-semibold text-gray-700">Slides</h3>
-                            {lesson &&
-                                lesson.slides.map((slide, index) => (
-                                    <motion.div
-                                        key={index}
-                                        className="p-4 bg-white rounded-md shadow-sm border border-gray-200"
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                    >
-                                        <h4 className="text-lg font-medium text-gray-800 mb-3">Slide {index + 1}</h4>
-                                        {/* Botões Organizados em Coluna */}
-                                        <div className="flex flex-col space-y-2 mb-4">
-                                            <Button variant="outline" size="sm">
-                                                <ChevronUp className="mr-2" /> Subir
-                                            </Button>
-                                            <Button variant="outline" size="sm">
-                                                <ChevronDown className="mr-2" /> Descer
-                                            </Button>
-                                            <Button variant="destructive" size="sm">
-                                                <Trash className="mr-2" /> Remover
-                                            </Button>
-                                        </div>
-                                        {/* Textarea do Slide */}
-                                        <Textarea
-                                            className="w-full"
-                                            placeholder="Conteúdo do slide"
-                                            value={slide.content}
-                                            onChange={() => { }}
-                                        />
-                                    </motion.div>
+    const handleVotePoll = (pollId: string, option: string) => {
+        socket.emit('vote-poll', { lessonId, pollId, option });
+    };
 
-                                ))}
-                            <Button variant="secondary" className="w-full flex items-center justify-center">
-                                <PlusCircle className="mr-2" /> Adicionar Slide
-                            </Button>
-                        </section>
-
-                        {/* Botão Final */}
-                        <Button
-                            type="submit"
-                            variant="default"
-                            className="w-full py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600"
-                        >
-                            Salvar Alterações
-                        </Button>
-                    </form>
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 flex items-center justify-center">
+                <Card className="bg-gray-900/90 backdrop-blur border-white/10 p-8">
+                    <div className="flex items-center space-x-4">
+                        <div className="w-6 h-6 border-2 border-blue-400 rounded-full animate-spin border-t-transparent" />
+                        <span className="text-lg font-medium text-white">Carregando...</span>
+                    </div>
                 </Card>
-            )}
-        </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 flex items-center justify-center">
+                <Card className="bg-gray-900/90 backdrop-blur border-white/10 p-8">
+                    <span className="text-lg text-red-400">{error}</span>
+                </Card>
+            </div>
+        );
+    }
+
+    if (!lesson || !lessonId) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900 flex items-center justify-center">
+                <Card className="bg-gray-900/90 backdrop-blur border-white/10 p-8">
+                    <span className="text-lg text-white">Lição não encontrada</span>
+                </Card>
+            </div>
+        );
+    }
+
+    return (
+        <LessonProvider lessonId={lessonId}>
+            <RoomDisplay
+                lesson={lesson}
+                onSlideChange={handleSlideChange}
+                onRaiseHand={handleRaiseHand}
+                onLowerHand={handleLowerHand}
+                onSync={handleSync}
+                onVotePoll={handleVotePoll}
+                currentSlide={currentSlide}
+                isSync={isSync}
+                handRaises={handRaises}
+                connectedUsers={connectedUsers}
+                isTeacher={user?.role === 'teacher'}
+            />
+        </LessonProvider>
     );
 }

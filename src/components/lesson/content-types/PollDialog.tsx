@@ -13,43 +13,45 @@ interface PollDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: { question: string; options: string[] }) => void;
+    question: string;
+    options: string[];
 }
 
-export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
-    const [question, setQuestion] = useState('');
-    const [options, setOptions] = useState<string[]>(['', '']); // Mínimo de duas opções
+export function PollDialog({ open, onOpenChange, onSave, question, options }: PollDialogProps) {
+    const [questionState, setQuestionState] = useState(question);
+    const [optionsState, setOptionsState] = useState<string[]>(options || []);
     const [isValid, setIsValid] = useState(false);
 
     const validateForm = () => {
-        const validOptions = options.filter(opt => opt.trim().length > 0);
-        setIsValid(question.trim().length > 0 && validOptions.length >= 2);
+        const validOptions = optionsState.filter(opt => opt.trim().length > 0);
+        setIsValid(questionState.trim().length > 0 && validOptions.length >= 2);
     };
 
     const handleAddOption = () => {
-        setOptions([...options, '']);
+        setOptionsState([...optionsState, '']);
     };
 
     const handleRemoveOption = (index: number) => {
-        if (options.length > 2) {
-            setOptions(options.filter((_, i) => i !== index));
+        if (optionsState.length > 2) {
+            setOptionsState(optionsState.filter((_, i) => i !== index));
             validateForm();
         }
     };
 
     const handleOptionChange = (index: number, value: string) => {
-        setOptions(options.map((opt, i) => i === index ? value : opt));
+        setOptionsState(optionsState.map((opt, i) => i === index ? value : opt));
         validateForm();
     };
 
     const handleSave = () => {
         if (isValid) {
-            const validOptions = options.filter(opt => opt.trim().length > 0);
+            const validOptions = optionsState.filter(opt => opt.trim().length > 0);
             onSave({
-                question,
+                question: questionState,
                 options: validOptions
             });
-            setQuestion('');
-            setOptions(['', '']);
+            setQuestionState('');
+            setOptionsState(['', '']);
             onOpenChange(false);
         }
     };
@@ -73,9 +75,9 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
                         <label className="text-sm font-medium">Pergunta da Enquete</label>
                         <Input
                             placeholder="Digite a pergunta..."
-                            value={question}
+                            value={questionState}
                             onChange={(e) => {
-                                setQuestion(e.target.value);
+                                setQuestionState(e.target.value);
                                 validateForm();
                             }}
                         />
@@ -84,7 +86,7 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Opções de Resposta</label>
                         <AnimatePresence>
-                            {options.map((option, index) => (
+                            {optionsState && optionsState.map((option, index) => (
                                 <motion.div
                                     key={index}
                                     initial={{ opacity: 0, y: -10 }}
@@ -97,7 +99,7 @@ export function PollDialog({ open, onOpenChange, onSave }: PollDialogProps) {
                                         value={option}
                                         onChange={(e) => handleOptionChange(index, e.target.value)}
                                     />
-                                    {options.length > 2 && (
+                                    {optionsState.length > 2 && (
                                         <Button
                                             type="button"
                                             variant="ghost"

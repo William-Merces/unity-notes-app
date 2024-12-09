@@ -13,34 +13,36 @@ interface QuestionDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: { content: string; suggestions: string[] }) => void;
+    content: string;
+    suggestions: string[];
 }
 
-export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogProps) {
-    const [question, setQuestion] = useState('');
-    const [suggestions, setSuggestions] = useState<string[]>(['']);
+export function QuestionDialog({ open, onOpenChange, onSave, content, suggestions }: QuestionDialogProps) {
+    const [question, setQuestion] = useState(content);
+    const [suggestionsState, setSuggestionsState] = useState<string[]>(suggestions || []);
 
     const handleAddSuggestion = () => {
-        setSuggestions([...suggestions, '']);
+        setSuggestionsState([...suggestionsState, '']);
     };
 
     const handleRemoveSuggestion = (index: number) => {
-        if (suggestions.length > 1) {
-            setSuggestions(suggestions.filter((_, i) => i !== index));
+        if (suggestionsState.length > 1) {
+            setSuggestionsState(suggestionsState.filter((_, i) => i !== index));
         }
     };
 
     const handleSuggestionChange = (index: number, value: string) => {
-        setSuggestions(suggestions.map((s, i) => i === index ? value : s));
+        setSuggestionsState(suggestionsState.map((s, i) => i === index ? value : s));
     };
 
     const handleSave = () => {
-        const validSuggestions = suggestions.filter(s => s.trim() !== '');
+        const validSuggestions = suggestionsState.filter(s => s.trim() !== '');
         onSave({
             content: question,
             suggestions: validSuggestions
         });
         setQuestion('');
-        setSuggestions(['']);
+        setSuggestionsState(['']);
         onOpenChange(false);
     };
 
@@ -68,7 +70,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Sugestões de Resposta (opcional)</label>
                         <AnimatePresence>
-                            {suggestions.map((suggestion, index) => (
+                            {suggestionsState && suggestionsState.map((suggestion, index) => (
                                 <motion.div
                                     key={index}
                                     initial={{ opacity: 0, y: -10 }}
@@ -81,7 +83,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                                         value={suggestion}
                                         onChange={(e) => handleSuggestionChange(index, e.target.value)}
                                     />
-                                    {suggestions.length > 1 && (
+                                    {suggestionsState.length > 1 && (
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -116,7 +118,7 @@ export function QuestionDialog({ open, onOpenChange, onSave }: QuestionDialogPro
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={!question.trim()}
+                        disabled={!question?.trim()}
                     >
                         Salvar
                     </Button>

@@ -14,22 +14,24 @@ interface ScriptureDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSave: (data: { reference: string; content: string }) => void;
+    reference: string;
+    content: string;
 }
 
-export function ScriptureDialog({ open, onOpenChange, onSave }: ScriptureDialogProps) {
-    const [reference, setReference] = useState('');
-    const [content, setContent] = useState('');
+export function ScriptureDialog({ open, onOpenChange, onSave, reference, content }: ScriptureDialogProps) {
+    const [referenceState, setReferenceState] = useState(reference);
+    const [contentState, setContentState] = useState(content);
     const [isValid, setIsValid] = useState(false);
 
     const validateForm = () => {
-        setIsValid(reference.trim().length > 0 && content.trim().length > 0);
+        setIsValid(referenceState.trim().length > 0 && contentState.trim().length > 0);
     };
 
     const handleSave = () => {
         if (isValid) {
-            onSave({ reference, content });
-            setReference('');
-            setContent('');
+            onSave({ reference: referenceState, content: contentState });
+            setReferenceState('');
+            setContentState('');
             onOpenChange(false);
         }
     };
@@ -53,9 +55,9 @@ export function ScriptureDialog({ open, onOpenChange, onSave }: ScriptureDialogP
                         <label className="text-sm font-medium">Referência</label>
                         <Input
                             placeholder="Ex: 1 Néfi 3:7"
-                            value={reference}
+                            value={referenceState}
                             onChange={(e) => {
-                                setReference(e.target.value);
+                                setReferenceState(e.target.value);
                                 validateForm();
                             }}
                         />
@@ -65,9 +67,9 @@ export function ScriptureDialog({ open, onOpenChange, onSave }: ScriptureDialogP
                         <label className="text-sm font-medium">Texto da Escritura</label>
                         <Textarea
                             placeholder="Digite o texto da escritura..."
-                            value={content}
+                            value={contentState}
                             onChange={(e) => {
-                                setContent(e.target.value);
+                                setContentState(e.target.value);
                                 validateForm();
                             }}
                             rows={4}

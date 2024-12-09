@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input/input';
 import { Button } from '@/components/ui/button/button';
 import { Textarea } from '@/components/ui/textarea/textarea';
 import { useRouter } from 'next/navigation';
+import cn from 'classnames';
 import { useAuth } from '@/contexts/AuthContext';
 import {
     Loader2,
@@ -19,7 +20,8 @@ import {
     BarChart2,
     Lightbulb,
     PlusCircle,
-    ArrowRight
+    ArrowRight,
+    Calendar
 } from 'lucide-react';
 import HymnSelector from './HymnSelector';
 import DiscourseSelector from './DiscourseSelector';
@@ -27,6 +29,8 @@ import { QuestionDialog } from './content-types/QuestionDialog';
 import { ScriptureDialog } from './content-types/ScriptureDialog';
 import { PollDialog } from './content-types/PollDialog';
 import { processDiscourseContent } from '@/utils/discourse-utils';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group/radio-group";
+import { Label } from "@/components/ui/label/label";
 
 interface FormData {
     firstHymn: string;
@@ -39,6 +43,7 @@ interface FormData {
     wardId: string;
     speaker: string;
     classId: string;
+    lessonDate: Date;
     slides: Array<{
         content: string;
         resources: any[];
@@ -56,6 +61,8 @@ const LessonForm = ({ classId }: { classId: string }) => {
     const [scriptureDialogOpen, setScriptureDialogOpen] = useState(false);
     const [pollDialogOpen, setPollDialogOpen] = useState(false);
     const [lessonTitle, setLessonTitle] = useState<string>('');
+    const [autoAdvance, setAutoAdvance] = useState(true);
+    const [showPreview, setShowPreview] = useState(false);
 
     const [formData, setFormData] = useState<FormData>({
         firstHymn: '',
@@ -68,15 +75,26 @@ const LessonForm = ({ classId }: { classId: string }) => {
         wardId: '',
         speaker: '',
         classId: classId,
+        lessonDate: getNextSunday(),
         slides: []
     });
+
+    function getNextSunday(from: Date = new Date()): Date {
+        const date = new Date(from);
+        date.setDate(date.getDate() + (7 - date.getDay()));
+        return date;
+    }
 
     const [slideStatuses, setSlideStatuses] = useState<Record<number, {
         confirmed: boolean;
         rejected: boolean;
     }>>({});
 
-    const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -20 } };
+    const fadeIn = {
+        initial: { opacity: 0, y: 20 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -20 }
+    };
 
     const handleHymnChange = (type: 'firstHymn' | 'lastHymn') => (hymn: { url: string }) => {
         setFormData(prev => ({
@@ -133,24 +151,16 @@ const LessonForm = ({ classId }: { classId: string }) => {
         }
     };
 
-    const handleConfirmSlide = (index: number) => {
+    const handleSlideAction = (index: number, action: 'confirm' | 'reject') => {
         setSlideStatuses(prev => ({
             ...prev,
-            [index]: { confirmed: true, rejected: false }
+            [index]: { 
+                confirmed: action === 'confirm', 
+                rejected: action === 'reject' 
+            }
         }));
 
-        // Automaticamente mostra os botões de recursos
-        setCurrentSlide(index);
-    };
-
-    const handleRejectSlide = (index: number) => {
-        setSlideStatuses(prev => ({
-            ...prev,
-            [index]: { confirmed: false, rejected: true }
-        }));
-
-        // Automaticamente avança para o próximo slide
-        if (index < formData.slides.length - 1) {
+        if (autoAdvance && index < formData.slides.length - 1) {
             setCurrentSlide(index + 1);
         }
     };
@@ -211,6 +221,13 @@ const LessonForm = ({ classId }: { classId: string }) => {
         return null;
     };
 
+    const handleDateChange = (newDate: Date) => {
+        setFormData(prev => ({
+            ...prev,
+            lessonDate: newDate
+        }));
+    };
+
     const handleSubmit = async () => {
         const validationError = validateForm();
         if (validationError) {
@@ -224,7 +241,6 @@ const LessonForm = ({ classId }: { classId: string }) => {
         try {
             const activeSlides = getActiveSlides();
 
-            // Estrutura os dados conforme esperado pelo backend
             const requestData = {
                 title: formData.title,
                 firstHymn: formData.firstHymn,
@@ -234,7 +250,8 @@ const LessonForm = ({ classId }: { classId: string }) => {
                 lastPrayer: formData.lastPrayer,
                 discourse: formData.discourse,
                 wardId: user?.ward?.id,
-                classId: classId,  // Usando o classId recebido via props
+                classId: classId,
+                lessonDate: formData.lessonDate.toISOString(),
                 slides: activeSlides.map((slide, index) => ({
                     content: slide.content,
                     order: index,
@@ -247,9 +264,6 @@ const LessonForm = ({ classId }: { classId: string }) => {
                 }))
             };
 
-            // Debug log
-            console.log('Dados enviados:', requestData);
-
             const response = await fetch('/api/lessons', {
                 method: 'POST',
                 headers: {
@@ -261,11 +275,10 @@ const LessonForm = ({ classId }: { classId: string }) => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error('Resposta de erro:', errorData);
                 throw new Error(errorData.error || 'Erro ao salvar aula');
             }
 
-            const data = await response.json();
+            const data: { id: string } = await response.json();
             router.push(`/ver-aula?id=${data.id}`);
         } catch (error) {
             console.error('Erro detalhado:', error);
@@ -291,7 +304,19 @@ const LessonForm = ({ classId }: { classId: string }) => {
                 <CardContent className="space-y-6">
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Discurso da Conferência</label>
+                            <Label>Data da Aula</Label>
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="date"
+                                    value={formData.lessonDate.toISOString().split('T')[0]}
+                                    onChange={(e) => handleDateChange(new Date(e.target.value))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Discurso da Conferência</Label>
                             <DiscourseSelector
                                 value={formData.discourse}
                                 onChange={handleDiscourseChange}
@@ -299,7 +324,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Primeiro Hino</label>
+                            <Label>Primeiro Hino</Label>
                             <HymnSelector
                                 value={formData.firstHymn}
                                 onChange={handleHymnChange('firstHymn')}
@@ -307,7 +332,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Primeira Oração</label>
+                            <Label>Primeira Oração</Label>
                             <Input
                                 value={formData.firstPrayer}
                                 onChange={(e) => setFormData(prev => ({
@@ -319,7 +344,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Último Hino</label>
+                            <Label>Último Hino</Label>
                             <HymnSelector
                                 value={formData.lastHymn}
                                 onChange={handleHymnChange('lastHymn')}
@@ -327,7 +352,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Última Oração</label>
+                            <Label>Última Oração</Label>
                             <Input
                                 value={formData.lastPrayer}
                                 onChange={(e) => setFormData(prev => ({
@@ -339,7 +364,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Anúncios (opcional)</label>
+                            <Label>Anúncios (opcional)</Label>
                             <Textarea
                                 value={formData.announcements}
                                 onChange={(e) => setFormData(prev => ({
@@ -374,41 +399,89 @@ const LessonForm = ({ classId }: { classId: string }) => {
         </motion.div>
     );
 
+    const renderResource = (resource: any) => {
+        switch (resource.type) {
+            case 'question':
+                return <div>Question: {resource.content}</div>;
+            case 'scripture':
+                return <div>Scripture: {resource.reference}</div>;
+            case 'poll':
+                return <div>Poll: {resource.question}</div>;
+            default:
+                return null;
+        }
+    };
+    
     const renderStepTwo = () => (
         <motion.div initial="initial" animate="animate" exit="exit" variants={fadeIn} className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle>{lessonTitle}</CardTitle>
-                    <CardDescription>Sua apresentação está pronta!</CardDescription>
-                    <CardDescription>
-                        Agora você pode personalizar cada slide:
-                        selecione os que deseja manter e adicione recursos como escrituras,
-                        perguntas e enquetes para tornar sua aula mais interativa.
+                    <CardDescription className="space-y-4">
+                        <p>
+                            Sua apresentação está pronta! Avance pelos slides usando as setas ou 
+                            as teclas do teclado. Selecione os slides que deseja manter e 
+                            adicione recursos interativos.
+                        </p>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="autoAdvance"
+                                    checked={autoAdvance}
+                                    onChange={(e) => setAutoAdvance(e.target.checked)}
+                                    className="rounded border-gray-300"
+                                />
+                                <Label htmlFor="autoAdvance">Avançar automaticamente</Label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="showPreview"
+                                    checked={showPreview}
+                                    onChange={(e) => setShowPreview(e.target.checked)}
+                                    className="rounded border-gray-300"
+                                />
+                                <Label htmlFor="showPreview">Mostrar preview</Label>
+                            </div>
+                        </div>
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-6">
-                        <Card className="relative">
+                        <Card className="relative overflow-hidden">
                             <CardContent className="p-6">
-                                <div className="absolute right-4 top-4 flex gap-2">
+                                <div className="absolute right-4 top-4 flex gap-2 z-10">
                                     {!slideStatuses[currentSlide]?.rejected && (
                                         <motion.button
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
-                                            className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0 text-green-600 hover:text-green-700 hover:bg-green-50`}
-                                            onClick={() => handleConfirmSlide(currentSlide)}
+                                            className={cn(
+                                                "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0",
+                                                "text-green-600 hover:text-green-700 hover:bg-green-50"
+                                            )}
+                                            onClick={() => handleSlideAction(currentSlide, 'confirm')}
                                         >
-                                            <Check className={`h-5 w-5 ${slideStatuses[currentSlide]?.confirmed ? 'text-green-600' : ''}`} />
+                                            <Check className={cn(
+                                                "h-5 w-5",
+                                                slideStatuses[currentSlide]?.confirmed && "text-green-600"
+                                            )} />
                                         </motion.button>
                                     )}
                                     {!slideStatuses[currentSlide]?.confirmed && (
                                         <motion.button
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
-                                            className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0 text-red-600 hover:text-red-700 hover:bg-red-50`}
-                                            onClick={() => handleRejectSlide(currentSlide)}
+                                            className={cn(
+                                                "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 w-10 hover:bg-accent hover:text-accent-foreground p-0",
+                                                "text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            )}
+                                            onClick={() => handleSlideAction(currentSlide, 'reject')}
                                         >
-                                            <X className={`h-5 w-5 ${slideStatuses[currentSlide]?.rejected ? 'text-red-600' : ''}`} />
+                                            <X className={cn(
+                                                "h-5 w-5",
+                                                slideStatuses[currentSlide]?.rejected && "text-red-600"
+                                            )} />
                                         </motion.button>
                                     )}
                                     {(slideStatuses[currentSlide]?.confirmed || slideStatuses[currentSlide]?.rejected) && (
@@ -423,50 +496,76 @@ const LessonForm = ({ classId }: { classId: string }) => {
                                     )}
                                 </div>
 
-                                <AnimatePresence mode="wait">
-                                    <motion.div
-                                        key={currentSlide}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -20 }}
-                                        className={`prose dark:prose-invert max-w-none ${slideStatuses[currentSlide]?.rejected ? 'opacity-50' : ''}`}
-                                    >
-                                        <p className="whitespace-pre-wrap">{formData.slides[currentSlide].content}</p>
-                                    </motion.div>
-                                </AnimatePresence>
+                                <div className={cn(
+                                    "transition-opacity duration-200",
+                                    slideStatuses[currentSlide]?.rejected && "opacity-50"
+                                )}>
+                                    <AnimatePresence mode="wait">
+                                        <motion.div
+                                            key={currentSlide}
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: -20 }}
+                                            className="prose dark:prose-invert max-w-none"
+                                        >
+                                            <div className="relative">
+                                                {showPreview ? (
+                                                    <div className="grid grid-cols-2 gap-6">
+                                                        <div className="space-y-4">
+                                                            <h3 className="text-sm font-medium text-muted-foreground">Editor</h3>
+                                                            <p className="whitespace-pre-wrap">{formData.slides[currentSlide].content}</p>
+                                                        </div>
+                                                        <div className="space-y-4">
+                                                            <h3 className="text-sm font-medium text-muted-foreground">Preview</h3>
+                                                            <div className="p-6 rounded-lg bg-accent/50">
+                                                                <p className="text-xl font-serif leading-relaxed">
+                                                                    {formData.slides[currentSlide].content}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="whitespace-pre-wrap">
+                                                        {formData.slides[currentSlide].content}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </div>
 
                                 {(slideStatuses[currentSlide]?.confirmed || !slideStatuses[currentSlide]) && (
                                     <>
                                         <div className="flex flex-wrap items-center gap-2 border-t pt-4 mt-4">
-                                            <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
                                                 onClick={() => handleAddResource('question')}
+                                                className="flex-1 sm:flex-none"
                                             >
                                                 <HelpCircle className="h-4 w-4 mr-2" />
                                                 Adicionar Pergunta
-                                            </motion.button>
+                                            </Button>
 
-                                            <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
                                                 onClick={() => handleAddResource('scripture')}
+                                                className="flex-1 sm:flex-none"
                                             >
                                                 <Book className="h-4 w-4 mr-2" />
                                                 Adicionar Escritura
-                                            </motion.button>
+                                            </Button>
 
-                                            <motion.button
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 flex-1 sm:flex-none"
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
                                                 onClick={() => handleAddResource('poll')}
+                                                className="flex-1 sm:flex-none"
                                             >
                                                 <BarChart2 className="h-4 w-4 mr-2" />
                                                 Adicionar Enquete
-                                            </motion.button>
+                                            </Button>
                                         </div>
 
                                         {formData.slides[currentSlide].resources?.map((resource, resourceIndex) => (
@@ -476,7 +575,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                                                 animate={{ opacity: 1, y: 0 }}
                                                 className="mt-4 border-t pt-4"
                                             >
-                                                {/* ... resto do conteúdo dos recursos permanece igual ... */}
+                                                {renderResource(resource)}
                                             </motion.div>
                                         ))}
                                     </>
@@ -485,54 +584,48 @@ const LessonForm = ({ classId }: { classId: string }) => {
                         </Card>
 
                         <div className="flex justify-between items-center">
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${currentSlide === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
                                 disabled={currentSlide === 0}
                             >
                                 <ChevronLeft className="h-4 w-4 mr-2" />
                                 Anterior
-                            </motion.button>
+                            </Button>
 
-                            <div className="text-sm text-muted-foreground">
-                                <div className="text-center">
+                            <div className="text-center">
+                                <div className="text-sm font-medium">
                                     Slide {currentSlide + 1} de {formData.slides.length}
                                 </div>
-                                <div className="text-xs">
+                                <div className="text-xs text-muted-foreground">
                                     {getActiveSlides().length} slides selecionados
                                 </div>
                             </div>
 
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:accent-foreground h-10 px-4 py-2 ${currentSlide === formData.slides.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => setCurrentSlide(prev => Math.min(formData.slides.length - 1, prev + 1))}
                                 disabled={currentSlide === formData.slides.length - 1}
                             >
                                 Próximo
                                 <ChevronRight className="h-4 w-4 ml-2" />
-                            </motion.button>
+                            </Button>
                         </div>
 
                         <div className="flex justify-between pt-6">
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+                            <Button
+                                variant="outline"
                                 onClick={() => setStep(1)}
                                 disabled={isLoading}
                             >
                                 <ChevronLeft className="h-4 w-4 mr-2" />
                                 Voltar
-                            </motion.button>
+                            </Button>
 
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                            <Button
+                                variant="default"
                                 onClick={handleSubmit}
                                 disabled={isLoading}
                             >
@@ -544,7 +637,7 @@ const LessonForm = ({ classId }: { classId: string }) => {
                                 ) : (
                                     'Finalizar Aula'
                                 )}
-                            </motion.button>
+                            </Button>
                         </div>
                     </div>
                 </CardContent>
@@ -554,18 +647,24 @@ const LessonForm = ({ classId }: { classId: string }) => {
                 open={questionDialogOpen}
                 onOpenChange={setQuestionDialogOpen}
                 onSave={(data) => handleResourceSave(data, 'question')}
+                content=""
+                suggestions={[]}
             />
 
             <ScriptureDialog
                 open={scriptureDialogOpen}
                 onOpenChange={setScriptureDialogOpen}
                 onSave={(data) => handleResourceSave(data, 'scripture')}
+                reference=""
+                content=""
             />
 
             <PollDialog
                 open={pollDialogOpen}
                 onOpenChange={setPollDialogOpen}
                 onSave={(data) => handleResourceSave(data, 'poll')}
+                question=""
+                options={[]}
             />
         </motion.div>
     );
