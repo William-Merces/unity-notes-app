@@ -1,5 +1,3 @@
-// src/app/lessons/page.tsx
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,11 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { FaEye, FaEdit, FaTrash } from 'react-icons/fa';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs/tabs';
+import ClassList from '@/components/class/ClassList';
 
 export default function Lessons() {
     const [lessons, setLessons] = useState<{ id: string; title: string; ward: { name: string } }[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState('available');
     const router = useRouter();
     const { user } = useAuth();
 
@@ -87,43 +88,65 @@ export default function Lessons() {
     }
 
     return (
-        <div className="w-full max-w-4xl mx-auto p-4 bg-gray-100">
-            {lessons.map(lesson => (
-                <Card key={lesson.id} className="p-8 mb-4">
-                    <div>
-                        <div>
-                            <h2 className="text-xl font-bold">{lesson.title}</h2>
-                            <p className="text-gray-600">{lesson.ward.name}</p>
-                        </div>
-                        <div className="mt-4">
-                        </div>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() => router.push(`/ver-aula?id=${lesson.id}`)}
-                                className="bg-blue-800 text-white px-4 py-2 rounded flex items-center hover:bg-blue-700"
-                            >
-                                <FaEye className="mr-2" /> Ver Aula
-                            </button>
-                            {user?.role === 'TEACHER' && (
-                                <>
-                                    <button
-                                        onClick={() => router.push(`/editar-aula?id=${lesson.id}`)}
-                                        className="bg-yellow-800 text-white px-4 py-2 rounded flex items-center hover:bg-yellow-700"
-                                    >
-                                        <FaEdit className="mr-2" /> Editar
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteLesson(lesson.id)}
-                                        className="bg-red-700 text-white px-4 py-2 rounded flex items-center hover:bg-red-600"
-                                    >
-                                        <FaTrash className="mr-2" /> Excluir
-                                    </button>
-                                </>
-                            )}
-                        </div>
+        <div className="container max-w-5xl mx-auto p-4 space-y-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList>
+                    <TabsTrigger value="available">Classes Disponíveis</TabsTrigger>
+                    <TabsTrigger value="enrolled">Minhas Classes</TabsTrigger>
+                    {user?.role === 'TEACHER' && (
+                        <TabsTrigger value="lessons">Minhas Aulas</TabsTrigger>
+                    )}
+                </TabsList>
+                
+                <TabsContent value="available">
+                    <ClassList mode="available" />
+                </TabsContent>
+                
+                <TabsContent value="enrolled">
+                    <ClassList mode="enrolled" />
+                </TabsContent>
+                
+                <TabsContent value="lessons">
+                    <div className="space-y-4">
+                        {lessons.map(lesson => (
+                            <Card key={lesson.id} className="p-8">
+                                <div>
+                                    <div>
+                                        <h2 className="text-xl font-bold">{lesson.title}</h2>
+                                        <p className="text-gray-600">{lesson.ward.name}</p>
+                                    </div>
+                                    <div className="mt-4">
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => router.push(`/ver-aula?id=${lesson.id}`)}
+                                            className="bg-blue-800 text-white px-4 py-2 rounded flex items-center hover:bg-blue-700"
+                                        >
+                                            <FaEye className="mr-2" /> Ver Aula
+                                        </button>
+                                        {user?.role === 'TEACHER' && (
+                                            <>
+                                                <button
+                                                    onClick={() => router.push(`/editar-aula?id=${lesson.id}`)}
+                                                    className="bg-yellow-800 text-white px-4 py-2 rounded flex items-center hover:bg-yellow-700"
+                                                >
+                                                    <FaEdit className="mr-2" /> Editar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteLesson(lesson.id)}
+                                                    className="bg-red-700 text-white px-4 py-2 rounded flex items-center hover:bg-red-600"
+                                                >
+                                                    <FaTrash className="mr-2" /> Excluir
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
                     </div>
-                </Card>
-            ))}
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

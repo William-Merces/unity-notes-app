@@ -1,5 +1,3 @@
-// src/app/auth/login/page.tsx
-
 'use client';
 
 import { useState } from 'react';
@@ -9,13 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card/card';
 import { Button } from '@/components/ui/button/button';
 import { Input } from '@/components/ui/input/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const { login } = useAuth();
     const router = useRouter();
 
@@ -26,21 +25,18 @@ export default function LoginPage() {
 
         try {
             await login(email, password);
-            
-            // Tentativa de navegação com delay de segurança
-            setTimeout(() => {
-                router.replace('/lessons');
-                
-                // Fallback para garantir a navegação
-                setTimeout(() => {
-                    if (window.location.pathname === '/auth/login') {
-                        window.location.href = '/lessons';
-                    }
-                }, 200);
-            }, 100);
-        } catch (err) {
+            router.replace('/lessons');
+        } catch (err: any) {
             console.error('Login error:', err);
-            setError('Email ou senha inválidos');
+            if (err.message?.includes('not found')) {
+                setError('Usuário não encontrado. Deseja criar uma conta?');
+                const registerUrl = new URLSearchParams();
+                registerUrl.set('email', email);
+                registerUrl.set('password', password);
+                router.push(`/auth/register?${registerUrl.toString()}`);
+            } else {
+                setError('Senha incorreta');
+            }
         } finally {
             setLoading(false);
         }
@@ -70,12 +66,27 @@ export default function LoginPage() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Senha</label>
-                            <Input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
+                            <div className="relative">
+                                <Input
+                                    type={showPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute right-0 top-0 h-full"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </div>
                         </div>
 
                         {error && (
