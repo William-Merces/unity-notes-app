@@ -5,18 +5,30 @@ import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
 
 interface RouteParams {
-    params: {
-        id: string;
-    };
+    params: { id: string };
 }
 
 export async function GET(req: Request, { params }: RouteParams) {
     try {
+        const user = await verifyToken();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const lesson = await prisma.lesson.findUnique({
             where: {
                 id: params.id
             },
             include: {
+                ward: true,
+                teacher: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        role: true
+                    }
+                },
                 slides: {
                     include: {
                         resources: true
@@ -24,40 +36,24 @@ export async function GET(req: Request, { params }: RouteParams) {
                     orderBy: {
                         order: 'asc'
                     }
+                },
+                class: {
+                    include: {
+                        ward: true
+                    }
                 }
             }
         });
 
         if (!lesson) {
-            return NextResponse.json(
-                { error: 'Aula não encontrada' },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
         }
 
         return NextResponse.json(lesson);
     } catch (error) {
-        console.error('Erro ao buscar aula:', error);
+        console.error('Error fetching lesson:', error);
         return NextResponse.json(
-            { error: 'Erro ao buscar aula' },
-            { status: 500 }
-        );
-    }
-}
-
-export async function DELETE(req: Request, { params }: RouteParams) {
-    try {
-        const lesson = await prisma.lesson.delete({
-            where: {
-                id: params.id
-            }
-        });
-
-        return NextResponse.json(lesson);
-    } catch (error) {
-        console.error('Erro ao excluir aula:', error);
-        return NextResponse.json(
-            { error: 'Erro ao excluir aula' },
+            { error: 'Failed to load lesson', details: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
         );
     }
@@ -70,57 +66,46 @@ export async function PUT(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
-        const {
-            title,
-            firstHymn,
-            firstPrayer,
-            announcements,
-            lastHymn,
-            lastPrayer,
-            discourse,
-            wardId,
-            classId,
-            teacherId,
-            slides
-        } = await req.json();
-
-        const updatedLesson = await prisma.lesson.update({
-            where: { id },
-            data: {
-                title,
-                firstHymn,
-                firstPrayer,
-                announcements,
-                lastHymn,
-                lastPrayer,
-                discourse,
-                wardId,
-                classId,
-                teacherId,
+        const data = await req.json();
+        const lesson = await prisma.lesson.update({
+            where: { id: params.id },
+            data,
+            include: {
+                ward: true,
+                teacher: true,
                 slides: {
-                    deleteMany: {},
-                    create: slides.map((slide: { content: string, resources: { type: string, content?: string, reference?: string, options?: string }[] }, index: number) => ({
-                        content: slide.content,
-                        order: index,
-                        resources: {
-                            create: slide.resources.map(resource => ({
-                                type: resource.type,
-                                content: resource.content || null,
-                                reference: resource.reference || null,
-                                options: resource.options || null
-                            }))
-                        }
-                    }))
+                    include: { resources: true },
+                    orderBy: { order: 'asc' }
                 }
             }
         });
 
-        return NextResponse.json(updatedLesson);
+        return NextResponse.json(lesson);
     } catch (error) {
-        console.error('Erro ao atualizar aula:', error);
+        console.error('Error updating lesson:', error);
         return NextResponse.json(
-            { error: 'Erro ao atualizar aula' },
+            { error: 'Failed to update lesson' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(req: Request, { params }: RouteParams) {
+    try {
+        const user = await verifyToken();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        await prisma.lesson.delete({
+            where: { id: params.id }
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting lesson:', error);
+        return NextResponse.json(
+            { error: 'Failed to delete lesson' },
             { status: 500 }
         );
     }

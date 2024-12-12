@@ -21,18 +21,44 @@ export async function GET() {
                 }
             },
             include: {
-                ward: true,
+                ward: {
+                    include: {
+                        stake: true
+                    }
+                },
                 _count: {
                     select: {
                         enrollments: true
                     }
+                },
+                lessons: {
+                    where: {
+                        OR: [
+                            { isActive: true },
+                            { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
+                        ]
+                    },
+                    orderBy: {
+                        createdAt: 'desc'
+                    },
+                    include: {
+                        teacher: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
+                    }
                 }
+            },
+            orderBy: {
+                name: 'asc'
             }
         });
 
         return NextResponse.json(enrolledClasses);
     } catch (error) {
-        console.error('Error fetching enrolled classes:', error);
+        console.error('Error in GET /api/classes/enrolled:', error);
         return NextResponse.json(
             { error: 'Failed to fetch enrolled classes' },
             { status: 500 }

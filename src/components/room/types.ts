@@ -1,4 +1,6 @@
-import { Lesson } from '@/types/lesson';
+// src/components/room/types.ts
+
+import { Lesson, Class } from '@/types/lesson';
 
 export interface Participant {
     userId: string;
@@ -16,6 +18,7 @@ export interface HandRaise {
 
 export interface RoomDisplayProps {
     lesson: Lesson;
+    enrolledClasses: Class[];
     onSlideChange: (slideIndex: number) => void;
     onRaiseHand: () => void;
     onLowerHand: () => void;

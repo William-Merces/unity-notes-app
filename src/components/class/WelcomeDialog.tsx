@@ -1,4 +1,5 @@
 // src/components/class/WelcomeDialog.tsx
+
 'use client';
 
 import { useState } from 'react';

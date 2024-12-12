@@ -1,3 +1,5 @@
+// src/components/lesson/LessonForm.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';

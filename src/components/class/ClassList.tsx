@@ -1,3 +1,5 @@
+// src/components/class/ClassList.tsx
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -11,7 +13,6 @@ import { Users, ChevronDown, ChevronRight, Plus, Book, PenSquare, Home, Eye, Cal
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-
 
 interface Props {
     mode: 'enrolled' | 'available';
@@ -39,6 +40,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
             fetchEnrolledClasses();
         } else {
             fetchStakes();
+            fetchEnrolledClasses(); // Fetch enrolled classes for both modes
         }
     }, [mode]);
 
@@ -50,13 +52,13 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
             if (response.ok) {
                 const data = await response.json();
                 setEnrolledClasses(data);
-                
-                // Atualiza status de matrícula
+
+                // Update enrollment status for all enrolled classes
                 const status: Record<string, 'none' | 'pending' | 'enrolled'> = {};
                 data.forEach((c: Class) => {
                     status[c.id] = 'enrolled';
                 });
-                setEnrollmentStatus(status);
+                setEnrollmentStatus(prev => ({ ...prev, ...status }));
             }
         } catch (error) {
             console.error('Erro ao carregar classes matriculadas:', error);
@@ -83,10 +85,10 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
     const handleEnroll = async (classId: string) => {
         try {
             setEnrollmentStatus(prev => ({ ...prev, [classId]: 'pending' }));
-            
+
             const response = await fetch('/api/classes/enroll', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json'
                 },
                 credentials: 'include',
@@ -96,7 +98,6 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
             if (response.ok) {
                 setEnrollmentStatus(prev => ({ ...prev, [classId]: 'enrolled' }));
                 await fetchEnrolledClasses();
-                await fetchStakes();
             }
         } catch (error) {
             console.error('Erro ao matricular:', error);
@@ -108,7 +109,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
         try {
             const response = await fetch('/api/user/update/ward', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json'
                 },
                 credentials: 'include',
@@ -125,12 +126,9 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
     };
 
     const getNextClassDate = (classItem: Class): Date => {
-        // Se a classe já tem uma data definida, use-a
         if (classItem.nextDate) {
             return new Date(classItem.nextDate);
         }
-        
-        // Caso contrário, retorne o próximo domingo
         return nextSunday;
     };
 
@@ -142,59 +140,11 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
         }).format(date);
     };
 
-    const renderEnrollButton = (classItem: Class) => {
-        const status = enrollmentStatus[classItem.id] || 'none';
-        
-        switch (status) {
-            case 'enrolled':
-                return (
-                    <motion.div
-                        initial={{ scale: 0.95 }}
-                        animate={{ scale: 1 }}
-                        className="flex items-center gap-2"
-                    >
-                        <Button variant="ghost" className="text-green-600">
-                            <Check className="h-4 w-4 mr-2" />
-                            Matriculado
-                        </Button>
-                        <Link href={`/ver-aula?classId=${classItem.id}`}>
-                            <Button variant="default">
-                                <Eye className="h-4 w-4 mr-2" />
-                                Ver Aula
-                            </Button>
-                        </Link>
-                    </motion.div>
-                );
-            case 'pending':
-                return (
-                    <Button disabled>
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="mr-2"
-                        >
-                            <Circle className="h-4 w-4" />
-                        </motion.div>
-                        Matriculando...
-                    </Button>
-                );
-            default:
-                return (
-                    <Button 
-                        onClick={() => handleEnroll(classItem.id)}
-                        variant="default"
-                    >
-                        <PenSquare className="h-4 w-4 mr-2" />
-                        Matricular-se
-                    </Button>
-                );
-        }
-    };
-
-    const renderClassActions = (classItem: Class, ward: Ward) => {
-        const belongsToWard = user?.ward?.id === ward.id;
+    const renderClassActions = (classItem: Class, ward?: Ward) => {
+        const belongsToWard = user?.ward?.id === ward?.id;
         const canCreateLesson = user?.role === 'TEACHER' || user?.role === 'ADMIN';
         const nextDate = getNextClassDate(classItem);
+        const isEnrolled = enrollmentStatus[classItem.id] === 'enrolled';
 
         return (
             <div className="space-y-4">
@@ -202,7 +152,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                     <Calendar className="h-4 w-4" />
                     <span>Próxima aula: {formatDate(nextDate)}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
@@ -210,12 +160,17 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                             {classItem._count?.enrollments || 0} alunos
                         </span>
                     </div>
-                    
+
                     <div className="flex gap-2">
-                        {renderEnrollButton(classItem)}
-                        
+                        <Link href="/lessons">
+                            <Button variant="default">
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Aulas
+                            </Button>
+                        </Link>
+
                         {belongsToWard && canCreateLesson && (
-                            <Link href={`/criar-aula?classId=${classItem.id}`}>
+                            <Link href={`/lessons/create?classId=${classItem.id}`}>
                                 <Button variant="outline">
                                     <Book className="h-4 w-4 mr-2" />
                                     Nova Aula
@@ -264,7 +219,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                                 <div>
                                                     <CardTitle>{classItem.name}</CardTitle>
                                                     <p className="text-sm text-muted-foreground">
-                                                        {classItem.ward?.name}
+                                                        {classItem.ward?.name || 'Ala não especificada'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -292,21 +247,22 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                         transition={{ delay: index * 0.1 }}
                     >
                         <Card>
-                            <CardHeader 
+                            <CardHeader
                                 className="cursor-pointer hover:bg-accent/50"
                                 onClick={() => setExpandedStakes(prev => ({ ...prev, [stake.id]: !prev[stake.id] }))}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        {expandedStakes[stake.id] ? 
-                                            <ChevronDown className="h-4 w-4" /> : 
+                                        {expandedStakes[stake.id] ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                        ) : (
                                             <ChevronRight className="h-4 w-4" />
-                                        }
+                                        )}
                                         <CardTitle>{stake.name}</CardTitle>
                                     </div>
                                 </div>
                             </CardHeader>
-                            
+
                             <AnimatePresence>
                                 {expandedStakes[stake.id] && (
                                     <motion.div
@@ -321,22 +277,23 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                                         <CardHeader>
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex items-center gap-2">
-                                                                    <div 
+                                                                    <div
                                                                         className="cursor-pointer flex items-center gap-2"
-                                                                        onClick={() => setExpandedWards(prev => ({ 
-                                                                            ...prev, 
-                                                                            [ward.id]: !prev[ward.id] 
+                                                                        onClick={() => setExpandedWards(prev => ({
+                                                                            ...prev,
+                                                                            [ward.id]: !prev[ward.id]
                                                                         }))}
                                                                     >
-                                                                        {expandedWards[ward.id] ? 
-                                                                            <ChevronDown className="h-4 w-4" /> : 
+                                                                        {expandedWards[ward.id] ? (
+                                                                            <ChevronDown className="h-4 w-4" />
+                                                                        ) : (
                                                                             <ChevronRight className="h-4 w-4" />
-                                                                        }
+                                                                        )}
                                                                         <CardTitle className="text-lg">{ward.name}</CardTitle>
                                                                     </div>
                                                                 </div>
                                                                 {!user?.ward?.id && (
-                                                                    <Button 
+                                                                    <Button
                                                                         variant="outline"
                                                                         onClick={() => handleJoinWard(ward.id)}
                                                                         className="ml-4"
@@ -358,7 +315,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                                                     <CardContent>
                                                                         <div className="space-y-4">
                                                                             {ward.classes?.map((classItem: Class) => (
-                                                                                <motion.div 
+                                                                                <motion.div
                                                                                     key={classItem.id}
                                                                                     className="p-4 rounded-lg border"
                                                                                     whileHover={{ scale: 1.01 }}
@@ -366,7 +323,7 @@ const ClassList: React.FC<Props> = ({ mode, searchTerm }) => {
                                                                                 >
                                                                                     <div className="space-y-4">
                                                                                         <h3 className="font-medium text-lg">
-                                                                                        {classItem.name}
+                                                                                            {classItem.name}
                                                                                         </h3>
                                                                                         {renderClassActions(classItem, ward)}
                                                                                     </div>

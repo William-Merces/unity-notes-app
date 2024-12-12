@@ -1,3 +1,5 @@
+// src/types/socket.ts
+
 export interface WsMessage {
     type: 'SLIDE_CHANGE' | 'HAND_RAISE' | 'POLL_VOTE';
     slide?: number;

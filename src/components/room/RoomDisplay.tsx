@@ -5,6 +5,7 @@
 import { useLessonContext } from '@/contexts/LessonContext';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import CurrentLessonBar from '@/components/class/CurrentLessonBar';
 import { Card, CardContent } from '@/components/ui/card/card';
 import { Button } from '@/components/ui/button/button';
 import { Input } from '@/components/ui/input/input';
@@ -45,7 +46,17 @@ const slideAnimation = {
 
 import { RoomDisplayProps, HandRaise, Participant } from './types';
 
-export function RoomDisplay({ lesson }: RoomDisplayProps) {
+export function RoomDisplay({
+    lesson,
+    enrolledClasses,
+    onSlideChange,
+    onRaiseHand,
+    onLowerHand,
+    onSync,
+    onVotePoll,
+    connectedUsers,
+    isTeacher
+}: RoomDisplayProps) {
     const {
         currentSlide,
         setCurrentSlide,
@@ -56,7 +67,6 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
         raisedHand,
         raiseHand,
         lowerHand,
-        isTeacher,
         giveVoice,
         pollResults: contextPollResults,
         votePoll: contextVotePoll
@@ -678,6 +688,10 @@ export function RoomDisplay({ lesson }: RoomDisplayProps) {
 
     return (
         <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-900">
+            <CurrentLessonBar
+                enrolledClasses={enrolledClasses}
+                fallbackMessage="Selecione uma aula para começar."
+            />
             {/* Efeito de partículas de fundo */}
             <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(14,165,233,0.1),rgba(14,165,233,0)_50%)] animate-pulse" />

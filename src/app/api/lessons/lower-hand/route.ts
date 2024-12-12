@@ -1,3 +1,5 @@
+// src/app/api/lessons/lower-hand/route.ts
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { pusherServer } from '@/lib/pusher';

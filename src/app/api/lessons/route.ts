@@ -21,12 +21,14 @@ export async function GET() {
             include: {
                 ward: true,
                 teacher: true,
+                slides: true,
                 _count: {
                     select: {
                         attendance: true
                     }
-                }
-            }
+                },
+            },
+            orderBy: { createdAt: 'desc' }
         });
 
         return NextResponse.json(lessons);
@@ -38,23 +40,20 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
-        // Verifica o usuário autenticado
         const user = await verifyToken();
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Verifica se o usuário está associado a uma ala
         if (!user.wardId) {
             return NextResponse.json(
-                { error: 'Usuário não está associado a uma ala' }, 
+                { error: 'Usuário não está associado a uma ala' },
                 { status: 401 }
             );
         }
 
         const data = await request.json();
 
-        // Validação detalhada dos campos
         if (!data.firstHymn || typeof data.firstHymn !== 'string') {
             return NextResponse.json({ error: 'Primeiro hino é obrigatório' }, { status: 400 });
         }
@@ -77,16 +76,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Slides são obrigatórios' }, { status: 400 });
         }
 
-        // Log para debug
-        console.log('Dados recebidos:', {
-            title: data.title,
-            wardId: user.wardId,
-            teacherId: user.id,
-            classId: data.classId,
-            slidesCount: data.slides.length
-        });
-
-        // Cria a aula
         const lesson = await prisma.lesson.create({
             data: {
                 title: data.title || "Nova Aula",
@@ -132,7 +121,7 @@ export async function POST(request: Request) {
     } catch (error) {
         console.error('Error creating lesson:', error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Erro ao criar aula' }, 
+            { error: error instanceof Error ? error.message : 'Erro ao criar aula' },
             { status: 500 }
         );
     }
